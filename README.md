@@ -18,3 +18,13 @@ The page relies on several libraries delivered via CDN:
 - **Tailwind CSS** for styling
 
 Because the script uses modern JavaScript features such as `crypto.randomUUID()`, a recent version of Chrome, Firefox, Edge or Safari is recommended. The application includes a simple fallback when this API is missing, but a modern browser is still advised. No additional installation is necessary beyond a web browser with internet access.
+
+## Deploying to Heroku
+
+This site can be served on Heroku using the [NGINX buildpack](https://github.com/heroku/heroku-buildpack-nginx). Add the buildpack and deploy with:
+
+```bash
+heroku buildpacks:set heroku-community/nginx
+```
+
+The repository already includes `config/nginx.conf.erb` with a minimal configuration. No `static.json` file is required for this setup.
