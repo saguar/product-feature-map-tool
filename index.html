@@ -351,8 +351,8 @@
             edges.get().forEach(edge => {
                 const fromNode = nodes.get(edge.from);
                 const toNode = nodes.get(edge.to);
-                const cleanFromLabel = `"${fromNode.label.replace(/"/g, '""')}"`;
-                const cleanToLabel = `"${toNode.label.replace(/"/g, '""')}"`;
+                const cleanFromLabel = `"${fromNode.label.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
+                const cleanToLabel = `"${toNode.label.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
                 const row = [fromNode.id, cleanFromLabel, fromNode.group, toNode.id, cleanToLabel, toNode.group];
                 csvRows.push(row.join(','));
             });
