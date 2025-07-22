@@ -17,4 +17,4 @@ The page relies on several libraries delivered via CDN:
 - **PapaParse** for reading and writing CSV files
 - **Tailwind CSS** for styling
 
-Because the script uses modern JavaScript features such as `crypto.randomUUID()`, a recent version of Chrome, Firefox, Edge or Safari is recommended. No additional installation is necessary beyond a web browser with internet access.
+Because the script uses modern JavaScript features such as `crypto.randomUUID()`, a recent version of Chrome, Firefox, Edge or Safari is recommended. The application includes a simple fallback when this API is missing, but a modern browser is still advised. No additional installation is necessary beyond a web browser with internet access.

@@ -175,6 +175,21 @@
 
     <script>
         // --- INITIALIZATION ---
+
+        // Generate a UUID, falling back to a simple v4 generator if
+        // crypto.randomUUID is not available (e.g., in older browsers).
+        function generateUUID() {
+            if (window.crypto && crypto.randomUUID) {
+                return crypto.randomUUID();
+            }
+            const template = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx';
+            return template.replace(/[xy]/g, c => {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
         const nodes = new vis.DataSet([]);
         const edges = new vis.DataSet([]);
         const container = document.getElementById('relation-map');
@@ -194,6 +209,7 @@
                     const fromNode = nodes.get(edgeData.from);
                     const toNode = nodes.get(edgeData.to);
                     if (fromNode.group !== toNode.group) {
+                        edgeData.id = generateUUID();
                         callback(edgeData);
                     } else {
                         alert("Error: You can only connect a Product to a Feature.");
@@ -328,7 +344,7 @@
 
             if (nodeName) {
                 nodes.add({
-                    id: crypto.randomUUID(),
+                    id: generateUUID(),
                     label: nodeName,
                     group: nodeType,
                 });
@@ -392,7 +408,7 @@
                                 loadedNodes.set(row.target_id, true);
                             }
                             if (row.source_id && row.target_id) {
-                                edges.add({ from: row.source_id, to: row.target_id, id: crypto.randomUUID() });
+                                edges.add({ from: row.source_id, to: row.target_id, id: generateUUID() });
                             }
                         });
                         network.fit();
