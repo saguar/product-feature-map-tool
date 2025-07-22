@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product-Feature Relationship Map</title>
+    
+    <!-- Vis.js for graph visualization -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    
+    <!-- PapaParse for CSV handling -->
+    <script type="text/javascript" src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+    
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        /* Custom style for the graph container */
+        #relation-map {
+            width: 100%;
+            height: 70vh;
+            border: 1px solid #e2e8f0; /* slate-200 */
+            background-color: #f8fafc; /* slate-50 */
+            border-radius: 0.5rem;
+        }
+
+        /* Hide the default file input */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Style for the active mode button */
+        .mode-button.active {
+            background-color: #0284c7; /* sky-600 */
+            color: white;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto bg-white shadow-lg rounded-lg p-6">
+        
+        <!-- Application Title -->
+        <div class="mb-6 text-center">
+            <h1 class="text-3xl font-bold text-slate-800">Product-Feature Relationship Map</h1>
+            <p class="text-slate-500 mt-2">Create, view, and manage the connections between your products and their features.</p>
+        </div>
+
+        <!-- Mode Switcher -->
+        <div class="mb-4 flex justify-center items-center p-1 rounded-lg bg-slate-200 w-fit mx-auto">
+            <button id="editor-mode-btn" onclick="setMode('editor')" class="mode-button px-4 py-2 rounded-md text-sm text-slate-700 transition-colors">
+                Editor Mode
+            </button>
+            <button id="reader-mode-btn" onclick="setMode('reader')" class="mode-button px-4 py-2 rounded-md text-sm text-slate-700 transition-colors">
+                Reader Mode
+            </button>
+        </div>
+
+        <!-- Control Panel -->
+        <div id="control-panel" class="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6 flex flex-wrap items-center gap-4 justify-center">
+            
+            <!-- Add new element section -->
+            <div id="add-element-section" class="flex items-center gap-2 flex-wrap justify-center">
+                <input type="text" id="node-name-input" placeholder="Element name..." class="px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                <select id="node-type-select" class="px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                    <option value="product">Product</option>
+                    <option value="feature">Feature</option>
+                </select>
+                <button onclick="addNode()" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow">
+                    Add Element
+                </button>
+            </div>
+
+            <div id="separator" class="h-8 border-l border-slate-300 hidden md:block"></div>
+
+            <!-- File and Settings section -->
+            <div class="flex items-center gap-2 flex-wrap justify-center">
+                <button id="save-map-btn" onclick="saveMapToCSV()" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow">
+                    Save Map (CSV)
+                </button>
+                <label for="csv-file-input" class="bg-gray-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer">
+                    Load Map (CSV)
+                </label>
+                <input type="file" id="csv-file-input" accept=".csv" onchange="loadMapFromCSV(event)">
+                <button id="settings-btn" onclick="openSettingsModal()" class="bg-slate-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-slate-700 transition-colors shadow">
+                    Map Settings
+                </button>
+            </div>
+        </div>
+
+        <!-- Map Container -->
+        <div id="relation-map"></div>
+
+        <!-- Instructions -->
+        <div id="instructions" class="mt-4 text-center text-sm text-slate-500">
+            <p><strong>How to use:</strong> To connect two elements, enable "Add Edge" mode (the chain icon in the toolbar) and drag a line between a product and a feature.</p>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+            <h2 class="text-2xl font-bold mb-6 text-slate-800">Map Settings</h2>
+            
+            <!-- Product Settings -->
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-2 text-slate-700">Product Style</h3>
+                <div class="flex items-center gap-4">
+                    <div class="flex-1">
+                        <label for="product-shape" class="block text-sm font-medium text-slate-600">Shape</label>
+                        <select id="product-shape" class="mt-1 block w-full py-2 px-3 border border-slate-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="box">Box</option>
+                            <option value="ellipse">Ellipse</option>
+                            <option value="circle">Circle</option>
+                            <option value="database">Database</option>
+                            <option value="diamond">Diamond</option>
+                            <option value="dot">Dot</option>
+                            <option value="star">Star</option>
+                            <option value="triangle">Triangle</option>
+                            <option value="square">Square</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label for="product-color" class="block text-sm font-medium text-slate-600">Color</label>
+                        <input type="color" id="product-color" class="mt-1 block w-full h-10 border border-slate-300 rounded-md">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature Settings -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-2 text-slate-700">Feature Style</h3>
+                <div class="flex items-center gap-4">
+                    <div class="flex-1">
+                        <label for="feature-shape" class="block text-sm font-medium text-slate-600">Shape</label>
+                        <select id="feature-shape" class="mt-1 block w-full py-2 px-3 border border-slate-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="ellipse">Ellipse</option>
+                            <option value="box">Box</option>
+                            <option value="circle">Circle</option>
+                            <option value="database">Database</option>
+                            <option value="diamond">Diamond</option>
+                            <option value="dot">Dot</option>
+                            <option value="star">Star</option>
+                            <option value="triangle">Triangle</option>
+                            <option value="square">Square</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label for="feature-color" class="block text-sm font-medium text-slate-600">Color</label>
+                        <input type="color" id="feature-color" class="mt-1 block w-full h-10 border border-slate-300 rounded-md">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edge Settings -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-2 text-slate-700">Link Style</h3>
+                 <div class="flex items-center gap-4">
+                    <div class="flex-1">
+                        <label for="edge-color" class="block text-sm font-medium text-slate-600">Color</label>
+                        <input type="color" id="edge-color" class="mt-1 block w-full h-10 border border-slate-300 rounded-md">
+                    </div>
+                 </div>
+            </div>
+
+            <!-- Modal Actions -->
+            <div class="flex justify-end gap-4">
+                <button onclick="closeSettingsModal()" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300 transition">Cancel</button>
+                <button onclick="applyMapSettings()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Apply Changes</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- INITIALIZATION ---
+        const nodes = new vis.DataSet([]);
+        const edges = new vis.DataSet([]);
+        const container = document.getElementById('relation-map');
+        const data = { nodes: nodes, edges: edges };
+        let currentMode = 'editor';
+
+        // Define the base options for the map
+        const options = {
+            interaction: {
+                hover: true,
+                multiselect: true,
+            },
+            manipulation: {
+                enabled: true, 
+                initiallyActive: true,
+                addEdge: function (edgeData, callback) {
+                    const fromNode = nodes.get(edgeData.from);
+                    const toNode = nodes.get(edgeData.to);
+                    if (fromNode.group !== toNode.group) {
+                        callback(edgeData);
+                    } else {
+                        alert("Error: You can only connect a Product to a Feature.");
+                        callback(null);
+                    }
+                },
+                editNode: function(nodeData, callback) {
+                    callback(nodeData);
+                },
+                deleteNode: true,
+                deleteEdge: true,
+            },
+            physics: {
+                solver: 'barnesHut',
+                barnesHut: {
+                    gravitationalConstant: -4000,
+                    centralGravity: 0.1,
+                    springLength: 150,
+                },
+            },
+            // Default styles for groups and edges
+            groups: {
+                product: {
+                    shape: 'box',
+                    color: { background: '#ef4444', border: '#b91c1c' },
+                    font: { color: 'white', face: 'Inter', bold: { size: 16 } },
+                    margin: 10,
+                },
+                feature: {
+                    shape: 'ellipse',
+                    color: { background: '#3b82f6', border: '#1d4ed8' },
+                    font: { color: 'white', face: 'Inter', bold: { size: 16 } },
+                    margin: 10,
+                }
+            },
+            edges: {
+                color: {
+                    color: '#848484',
+                    highlight: '#848484',
+                    hover: '#848484',
+                },
+                width: 2,
+            }
+        };
+
+        // Create the network instance
+        const network = new vis.Network(container, data, options);
+
+        // --- MODE MANAGEMENT ---
+        function setMode(newMode) {
+            currentMode = newMode;
+            const editorControls = document.getElementById('add-element-section');
+            const saveButton = document.getElementById('save-map-btn');
+            const settingsButton = document.getElementById('settings-btn');
+            const separator = document.getElementById('separator');
+            const instructions = document.getElementById('instructions');
+            const editorBtn = document.getElementById('editor-mode-btn');
+            const readerBtn = document.getElementById('reader-mode-btn');
+
+            if (newMode === 'editor') {
+                editorControls.style.display = 'flex';
+                saveButton.style.display = 'block';
+                settingsButton.style.display = 'block';
+                separator.style.display = 'block';
+                instructions.style.display = 'block';
+                network.setOptions({ manipulation: { enabled: true } });
+                editorBtn.classList.add('active');
+                readerBtn.classList.remove('active');
+            } else { // Reader mode
+                editorControls.style.display = 'none';
+                saveButton.style.display = 'none';
+                settingsButton.style.display = 'none';
+                separator.style.display = 'none';
+                instructions.style.display = 'none';
+                network.setOptions({ manipulation: { enabled: false } });
+                readerBtn.classList.add('active');
+                editorBtn.classList.remove('active');
+            }
+        }
+
+        // --- SETTINGS MODAL ---
+        const settingsModal = document.getElementById('settings-modal');
+
+        function openSettingsModal() {
+            // Populate modal with current settings
+            document.getElementById('product-shape').value = options.groups.product.shape;
+            document.getElementById('product-color').value = options.groups.product.color.background;
+            document.getElementById('feature-shape').value = options.groups.feature.shape;
+            document.getElementById('feature-color').value = options.groups.feature.color.background;
+            document.getElementById('edge-color').value = options.edges.color.color;
+            
+            settingsModal.classList.remove('hidden');
+        }
+
+        function closeSettingsModal() {
+            settingsModal.classList.add('hidden');
+        }
+
+        function applyMapSettings() {
+            // Get new values from the modal
+            const newProductShape = document.getElementById('product-shape').value;
+            const newProductColor = document.getElementById('product-color').value;
+            const newFeatureShape = document.getElementById('feature-shape').value;
+            const newFeatureColor = document.getElementById('feature-color').value;
+            const newEdgeColor = document.getElementById('edge-color').value;
+
+            // Update the options object
+            options.groups.product.shape = newProductShape;
+            options.groups.product.color.background = newProductColor;
+            options.groups.product.color.border = newProductColor; // Match border to background
+
+            options.groups.feature.shape = newFeatureShape;
+            options.groups.feature.color.background = newFeatureColor;
+            options.groups.feature.color.border = newFeatureColor; // Match border to background
+
+            options.edges.color.color = newEdgeColor;
+            options.edges.color.highlight = newEdgeColor;
+            options.edges.color.hover = newEdgeColor;
+
+            // Apply the new options to the network
+            network.setOptions(options);
+            
+            closeSettingsModal();
+        }
+
+        // --- CORE FUNCTIONS ---
+        function addNode() {
+            const nameInput = document.getElementById('node-name-input');
+            const typeSelect = document.getElementById('node-type-select');
+            const nodeName = nameInput.value.trim();
+            const nodeType = typeSelect.value;
+
+            if (nodeName) {
+                nodes.add({
+                    id: crypto.randomUUID(),
+                    label: nodeName,
+                    group: nodeType,
+                });
+                nameInput.value = '';
+            } else {
+                alert("Please enter a name for the element.");
+            }
+        }
+
+        function saveMapToCSV() {
+            if (edges.length === 0) {
+                alert("No relationships to save. Connect at least one product to a feature.");
+                return;
+            }
+
+            const csvRows = [];
+            const headers = ['source_id', 'source_label', 'source_type', 'target_id', 'target_label', 'target_type'];
+            csvRows.push(headers.join(','));
+
+            edges.get().forEach(edge => {
+                const fromNode = nodes.get(edge.from);
+                const toNode = nodes.get(edge.to);
+                const cleanFromLabel = `"${fromNode.label.replace(/"/g, '""')}"`;
+                const cleanToLabel = `"${toNode.label.replace(/"/g, '""')}"`;
+                const row = [fromNode.id, cleanFromLabel, fromNode.group, toNode.id, cleanToLabel, toNode.group];
+                csvRows.push(row.join(','));
+            });
+
+            const csvString = csvRows.join('\n');
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "relationship_map.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function loadMapFromCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (confirm("Loading a new file will replace the current map. Continue?")) {
+                        nodes.clear();
+                        edges.clear();
+                        const loadedNodes = new Map();
+
+                        results.data.forEach(row => {
+                            if (row.source_id && !loadedNodes.has(row.source_id)) {
+                                nodes.add({ id: row.source_id, label: row.source_label, group: row.source_type });
+                                loadedNodes.set(row.source_id, true);
+                            }
+                            if (row.target_id && !loadedNodes.has(row.target_id)) {
+                                nodes.add({ id: row.target_id, label: row.target_label, group: row.target_type });
+                                loadedNodes.set(row.target_id, true);
+                            }
+                            if (row.source_id && row.target_id) {
+                                edges.add({ from: row.source_id, to: row.target_id, id: crypto.randomUUID() });
+                            }
+                        });
+                        network.fit();
+                    }
+                    event.target.value = '';
+                },
+                error: function(error) {
+                    alert("An error occurred while reading the CSV file.");
+                    console.error("PapaParse Error:", error);
+                }
+            });
+        }
+
+        // --- INITIALIZE APP STATE ---
+        document.addEventListener('DOMContentLoaded', () => {
+            setMode('editor');
+        });
+    </script>
+
+</body>
+</html>
