@@ -263,18 +263,42 @@
         };
 
         const hasChildren = product.children && product.children.length > 0;
-        const toggleIcon = hasChildren ? `<span class="toggle-children" onclick="event.stopPropagation(); toggleCollapse('${product.id}')">${product.isCollapsed ? '&#9658;' : '&#9660;'}</span>` : '<span class="toggle-children"></span>';
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'flex items-center';
 
-        item.innerHTML = `
-            <div class="flex items-center">
-                ${toggleIcon}
-                <span>${product.name}</span>
-            </div>
-            ${currentMode === 'editor' ? `
-            <div class="list-item-actions space-x-2">
-                <button onclick="event.stopPropagation(); handleEditProduct('${product.id}')" class="text-slate-500 hover:text-blue-600" title="Edit">&#9998;</button>
-                <button onclick="event.stopPropagation(); handleDeleteProduct('${product.id}')" class="text-slate-500 hover:text-red-600" title="Delete">&#10006;</button>
-            </div>` : ''}`;
+        const toggleSpan = document.createElement('span');
+        toggleSpan.className = 'toggle-children';
+        if (hasChildren) {
+            toggleSpan.textContent = product.isCollapsed ? '\u25BA' : '\u25BC';
+            toggleSpan.onclick = (e) => { e.stopPropagation(); toggleCollapse(product.id); };
+        }
+        contentWrapper.appendChild(toggleSpan);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = product.name;
+        contentWrapper.appendChild(nameSpan);
+        item.appendChild(contentWrapper);
+
+        if (currentMode === 'editor') {
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'list-item-actions space-x-2';
+
+            const editBtn = document.createElement('button');
+            editBtn.onclick = (e) => { e.stopPropagation(); handleEditProduct(product.id); };
+            editBtn.className = 'text-slate-500 hover:text-blue-600';
+            editBtn.title = 'Edit';
+            editBtn.innerHTML = '&#9998;';
+            actionsDiv.appendChild(editBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.onclick = (e) => { e.stopPropagation(); handleDeleteProduct(product.id); };
+            deleteBtn.className = 'text-slate-500 hover:text-red-600';
+            deleteBtn.title = 'Delete';
+            deleteBtn.innerHTML = '&#10006;';
+            actionsDiv.appendChild(deleteBtn);
+
+            item.appendChild(actionsDiv);
+        }
         productsListEl.appendChild(item);
 
         if (hasChildren && !product.isCollapsed) {
@@ -286,16 +310,19 @@
         featuresListEl.innerHTML = '';
         features.forEach(feature => {
             let itemClass = 'list-item p-3 border rounded-md flex justify-between items-center transition-colors border-slate-300';
-            let linkButton = '';
+            let showLinkBtn = false;
+            let isLinked = false;
+            let linkBtnColor = '';
+            let linkBtnText = '';
             if (currentMode === 'editor') {
                 itemClass += ' cursor-pointer hover:bg-slate-100';
                 if (selectedItem.type === 'feature' && feature.id === selectedItem.id) itemClass += ' selected';
                 if (selectedItem.type === 'product') {
-                    const isLinked = links.some(l => l.productId === selectedItem.id && l.featureId === feature.id);
+                    isLinked = links.some(l => l.productId === selectedItem.id && l.featureId === feature.id);
                     if (isLinked) itemClass += ' linked';
-                    const btnText = isLinked ? 'Unlink' : 'Link';
-                    const btnColor = isLinked ? 'bg-amber-500 hover:bg-amber-600' : 'bg-teal-500 hover:bg-teal-600';
-                    linkButton = `<button onclick="event.stopPropagation(); handleToggleLink('${feature.id}')" class="text-xs text-white px-2 py-1 rounded ${btnColor}">${btnText}</button>`;
+                    showLinkBtn = true;
+                    linkBtnText = isLinked ? 'Unlink' : 'Link';
+                    linkBtnColor = isLinked ? 'bg-amber-500 hover:bg-amber-600' : 'bg-teal-500 hover:bg-teal-600';
                 }
             }
             if (currentMode === 'viewer' && hoveredItem.type === 'product' && links.some(l => l.featureId === feature.id && l.productId === hoveredItem.id)) itemClass += ' linked';
@@ -308,16 +335,43 @@
             item.onmouseover = (e) => { e.stopPropagation(); handleHoverItem('feature', feature.id); };
             item.onmouseout = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
 
-            item.innerHTML = `
-                <span>${feature.name}</span>
-                <div class="flex items-center gap-2">
-                    ${linkButton}
-                    ${currentMode === 'editor' ? `
-                    <div class="list-item-actions space-x-2">
-                        <button onclick="event.stopPropagation(); handleEditFeature('${feature.id}')" class="text-slate-500 hover:text-blue-600" title="Edit">&#9998;</button>
-                        <button onclick="event.stopPropagation(); handleDeleteFeature('${feature.id}')" class="text-slate-500 hover:text-red-600" title="Delete">&#10006;</button>
-                    </div>` : ''}
-                </div>`;
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = feature.name;
+            item.appendChild(nameSpan);
+
+            const rightDiv = document.createElement('div');
+            rightDiv.className = 'flex items-center gap-2';
+
+            if (showLinkBtn) {
+                const linkBtn = document.createElement('button');
+                linkBtn.onclick = (e) => { e.stopPropagation(); handleToggleLink(feature.id); };
+                linkBtn.className = `text-xs text-white px-2 py-1 rounded ${linkBtnColor}`;
+                linkBtn.textContent = linkBtnText;
+                rightDiv.appendChild(linkBtn);
+            }
+
+            if (currentMode === 'editor') {
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'list-item-actions space-x-2';
+
+                const editBtn = document.createElement('button');
+                editBtn.onclick = (e) => { e.stopPropagation(); handleEditFeature(feature.id); };
+                editBtn.className = 'text-slate-500 hover:text-blue-600';
+                editBtn.title = 'Edit';
+                editBtn.innerHTML = '&#9998;';
+                actionsDiv.appendChild(editBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.onclick = (e) => { e.stopPropagation(); handleDeleteFeature(feature.id); };
+                deleteBtn.className = 'text-slate-500 hover:text-red-600';
+                deleteBtn.title = 'Delete';
+                deleteBtn.innerHTML = '&#10006;';
+                actionsDiv.appendChild(deleteBtn);
+
+                rightDiv.appendChild(actionsDiv);
+            }
+
+            item.appendChild(rightDiv);
             featuresListEl.appendChild(item);
         });
     }
