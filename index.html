@@ -184,6 +184,7 @@
     let products = [];
     let features = [];
     let links = [];
+    let allLinks = [];
     let selectedItem = { id: null, type: null };
     let hoveredItem = { id: null, type: null };
     let currentMode = 'editor';
@@ -221,6 +222,29 @@
         return false;
     }
 
+    function getAncestors(productId) {
+        const ancestors = [];
+        let current = products.find(p => p.id === productId);
+        while (current && current.parentId) {
+            current = products.find(p => p.id === current.parentId);
+            if (current) ancestors.push(current.id);
+        }
+        return ancestors;
+    }
+
+    function getAllLinks() {
+        const result = links.map(l => ({ ...l, inherited: false }));
+        links.forEach(link => {
+            const ancestors = getAncestors(link.productId);
+            ancestors.forEach(ancestorId => {
+                if (!result.some(l => l.productId === ancestorId && l.featureId === link.featureId)) {
+                    result.push({ productId: ancestorId, featureId: link.featureId, inherited: true });
+                }
+            });
+        });
+        return result;
+    }
+
     // --- DOM ELEMENTS ---
     const productsListEl = document.getElementById('products-list');
     const featuresListEl = document.getElementById('features-list');
@@ -239,6 +263,7 @@
 
     // --- RENDER FUNCTIONS ---
     function renderAll() {
+        allLinks = getAllLinks();
         renderProducts();
         renderFeatures();
         setTimeout(drawConnectors, 0);
@@ -262,8 +287,8 @@
             itemClass += ' cursor-pointer hover:bg-slate-100';
             if (selectedItem.type === 'product' && product.id === selectedItem.id) itemClass += ' selected';
         }
-        if (selectedItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === selectedItem.id)) itemClass += ' linked';
-        if (currentMode === 'viewer' && hoveredItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === hoveredItem.id)) itemClass += ' linked';
+        if (selectedItem.type === 'feature' && allLinks.some(l => l.productId === product.id && l.featureId === selectedItem.id)) itemClass += ' linked';
+        if (currentMode === 'viewer' && hoveredItem.type === 'feature' && allLinks.some(l => l.productId === product.id && l.featureId === hoveredItem.id)) itemClass += ' linked';
         if (currentMode === 'viewer' && hoveredItem.type === 'product' && product.id === hoveredItem.id) itemClass += ' hovered';
 
         const item = document.createElement('div');
@@ -350,13 +375,13 @@
                 if (selectedItem.type === 'feature' && feature.id === selectedItem.id) itemClass += ' selected';
                 if (selectedItem.type === 'product') {
                     isLinked = links.some(l => l.productId === selectedItem.id && l.featureId === feature.id);
-                    if (isLinked) itemClass += ' linked';
+                    if (allLinks.some(l => l.productId === selectedItem.id && l.featureId === feature.id)) itemClass += ' linked';
                     showLinkBtn = true;
                     linkBtnText = isLinked ? 'Unlink' : 'Link';
                     linkBtnColor = isLinked ? 'bg-amber-500 hover:bg-amber-600' : 'bg-teal-500 hover:bg-teal-600';
                 }
             }
-            if (currentMode === 'viewer' && hoveredItem.type === 'product' && links.some(l => l.featureId === feature.id && l.productId === hoveredItem.id)) itemClass += ' linked';
+            if (currentMode === 'viewer' && hoveredItem.type === 'product' && allLinks.some(l => l.featureId === feature.id && l.productId === hoveredItem.id)) itemClass += ' linked';
             if (currentMode === 'viewer' && hoveredItem.type === 'feature' && feature.id === hoveredItem.id) itemClass += ' hovered';
 
             const item = document.createElement('div');
@@ -415,7 +440,7 @@
         if (itemToDraw.type === 'product') {
             const productEl = document.querySelector(`#products-list .list-item[data-id="${itemToDraw.id}"]`);
             if (!productEl) return;
-            const linkedFeatureIds = links.filter(l => l.productId === itemToDraw.id).map(l => l.featureId);
+            const linkedFeatureIds = allLinks.filter(l => l.productId === itemToDraw.id).map(l => l.featureId);
             linkedFeatureIds.forEach(featureId => {
                 const featureEl = document.querySelector(`#features-list .list-item[data-id="${featureId}"]`);
                 if (featureEl) drawBezierCurve(productEl, featureEl);
@@ -423,7 +448,7 @@
         } else if (itemToDraw.type === 'feature') {
             const featureEl = document.querySelector(`#features-list .list-item[data-id="${itemToDraw.id}"]`);
             if (!featureEl) return;
-            const linkedProductIds = links.filter(l => l.featureId === itemToDraw.id).map(l => l.productId);
+            const linkedProductIds = allLinks.filter(l => l.featureId === itemToDraw.id).map(l => l.productId);
             linkedProductIds.forEach(productId => {
                 const productEl = document.querySelector(`#products-list .list-item[data-id="${productId}"]`);
                 if (productEl) drawBezierCurve(productEl, featureEl);
