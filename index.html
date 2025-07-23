@@ -11,27 +11,28 @@
             height: 100%;
             font-family: 'Inter', sans-serif;
         }
-        /* Style for the main container */
         .main-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 2rem;
-            height: calc(100vh - 80px); /* Full height minus top bar */
+            height: calc(100vh - 80px);
         }
-        /* Style for selected items in lists */
         .list-item.selected {
             background-color: #dbeafe; /* blue-100 */
             border-color: #3b82f6; /* blue-500 */
             font-weight: 600;
         }
-        /* SVG canvas for drawing connector lines */
+        .list-item.linked {
+            background-color: #e0e7ff; /* indigo-100 */
+            border-style: dashed;
+        }
         #svg-connector-canvas {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none; /* Allows clicks to pass through */
+            pointer-events: none;
             z-index: 0;
         }
         .list-item-actions {
@@ -50,10 +51,8 @@
         <!-- Top Control Bar -->
         <div class="w-full bg-white shadow-md p-4 flex items-center justify-center gap-6 border-b border-slate-200 z-10">
             <button onclick="handleAddProduct()" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow">Add Product</button>
-            <button id="add-feature-btn" onclick="handleAddFeature()" class="bg-sky-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-sky-700 transition-colors shadow disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>Add Feature</button>
-            
+            <button onclick="handleAddFeature()" class="bg-sky-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-sky-700 transition-colors shadow">Add Feature</button>
             <div class="h-8 border-l border-slate-300"></div>
-
             <button onclick="saveMapToCSV()" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow">Save (CSV)</button>
             <label for="csv-file-input" class="bg-gray-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer">Load (CSV)</label>
             <input type="file" id="csv-file-input" accept=".csv" onchange="loadMapFromCSV(event)">
@@ -65,273 +64,321 @@
                 <!-- Products Column -->
                 <div id="products-column" class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 overflow-y-auto">
                     <h2 class="text-xl font-bold text-slate-800 mb-4 text-center">Products</h2>
-                    <div id="products-list" class="space-y-2">
-                        <!-- Product items will be injected here -->
-                    </div>
+                    <div id="products-list" class="space-y-2 list-none"></div>
                 </div>
-
                 <!-- Features Column -->
                 <div id="features-column" class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 overflow-y-auto">
                     <h2 class="text-xl font-bold text-slate-800 mb-4 text-center">Features</h2>
-                    <div id="features-list" class="space-y-2">
-                         <!-- Feature items will be injected here -->
-                    </div>
+                    <div id="features-list" class="space-y-2 list-none"></div>
                 </div>
             </div>
-            
-            <!-- SVG Canvas for connectors -->
             <svg id="svg-connector-canvas"></svg>
         </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="input-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 id="modal-title" class="text-lg font-bold mb-4"></h3>
+            <input type="text" id="modal-input" class="w-full px-3 py-2 border border-slate-300 rounded-md">
+            <div class="mt-4 flex justify-end gap-2">
+                <button onclick="closeInputModal()" class="px-4 py-2 bg-slate-200 rounded-md hover:bg-slate-300">Cancel</button>
+                <button onclick="handleModalSave()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
+            </div>
+        </div>
+    </div>
+    <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h3 class="text-lg font-bold mb-2">Are you sure?</h3>
+            <p id="confirm-modal-text" class="text-slate-600 mb-4"></p>
+            <div class="mt-4 flex justify-end gap-2">
+                <button onclick="closeConfirmModal()" class="px-4 py-2 bg-slate-200 rounded-md hover:bg-slate-300">Cancel</button>
+                <button onclick="handleModalConfirm()" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Delete</button>
+            </div>
+        </div>
     </div>
 
     <script>
     // --- DATA MANAGEMENT ---
     let products = [];
-    let selectedProductId = null;
+    let features = [];
+    let links = [];
+    let selectedItem = { id: null, type: null };
 
     // --- DOM ELEMENTS ---
     const productsListEl = document.getElementById('products-list');
     const featuresListEl = document.getElementById('features-list');
-    const addFeatureBtn = document.getElementById('add-feature-btn');
     const svgCanvas = document.getElementById('svg-connector-canvas');
+    const inputModal = document.getElementById('input-modal'), modalTitle = document.getElementById('modal-title'), modalInput = document.getElementById('modal-input');
+    const confirmModal = document.getElementById('confirm-modal'), confirmModalText = document.getElementById('confirm-modal-text');
+
+    // --- MODAL STATE ---
+    let onSaveCallback = null;
+    let onConfirmCallback = null;
 
     // --- RENDER FUNCTIONS ---
-
-    /**
-     * Renders the entire list of products.
-     */
-    function renderProducts() {
-        productsListEl.innerHTML = ''; // Clear the list
-        products.forEach(product => {
-            const isSelected = product.id === selectedProductId;
-            const item = document.createElement('div');
-            item.className = `list-item p-3 border rounded-md cursor-pointer flex justify-between items-center transition-colors ${isSelected ? 'selected' : 'border-slate-300 hover:bg-slate-100'}`;
-            item.dataset.id = product.id;
-            item.onclick = () => handleSelectProduct(product.id);
-            
-            item.innerHTML = `
-                <span class="product-name">${product.name}</span>
-                <div class="list-item-actions space-x-2">
-                    <button onclick="event.stopPropagation(); handleEditProduct('${product.id}')" class="text-slate-500 hover:text-blue-600">&#9998;</button> <!-- Edit icon -->
-                    <button onclick="event.stopPropagation(); handleDeleteProduct('${product.id}')" class="text-slate-500 hover:text-red-600">&#10006;</button> <!-- Delete icon -->
-                </div>
-            `;
-            productsListEl.appendChild(item);
-        });
-        drawConnectors();
-    }
-
-    /**
-     * Renders the features for the currently selected product.
-     */
-    function renderFeatures() {
-        featuresListEl.innerHTML = ''; // Clear the list
-        if (!selectedProductId) {
-            featuresListEl.innerHTML = '<p class="text-slate-400 text-center">Select a product to see its features.</p>';
-            return;
-        }
-
-        const product = products.find(p => p.id === selectedProductId);
-        if (!product || !product.features || product.features.length === 0) {
-            featuresListEl.innerHTML = '<p class="text-slate-400 text-center">No features linked to this product.</p>';
-            return;
-        }
-
-        product.features.forEach(feature => {
-            const item = document.createElement('div');
-            item.className = 'list-item p-3 border border-slate-300 rounded-md flex justify-between items-center';
-            item.dataset.id = feature.id;
-            item.innerHTML = `
-                <span>${feature.name}</span>
-                <div class="list-item-actions space-x-2">
-                    <button onclick="event.stopPropagation(); handleEditFeature('${feature.id}')" class="text-slate-500 hover:text-blue-600">&#9998;</button>
-                    <button onclick="event.stopPropagation(); handleDeleteFeature('${feature.id}')" class="text-slate-500 hover:text-red-600">&#10006;</button>
-                </div>
-            `;
-            featuresListEl.appendChild(item);
-        });
-        drawConnectors();
-    }
-    
-    /**
-     * Draws SVG lines connecting the selected product to its features.
-     */
-    function drawConnectors() {
-        svgCanvas.innerHTML = '';
-        if (!selectedProductId) return;
-
-        const productEl = document.querySelector(`.list-item[data-id="${selectedProductId}"]`);
-        if (!productEl) return;
-
-        const productRect = productEl.getBoundingClientRect();
-        const startX = productRect.right;
-        const startY = productRect.top + productRect.height / 2;
-
-        const featureItems = document.querySelectorAll('#features-list .list-item');
-        featureItems.forEach(featureEl => {
-            const featureRect = featureEl.getBoundingClientRect();
-            const endX = featureRect.left;
-            const endY = featureRect.top + featureRect.height / 2;
-
-            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            line.setAttribute('x1', startX);
-            line.setAttribute('y1', startY);
-            line.setAttribute('x2', endX);
-            line.setAttribute('y2', endY);
-            line.setAttribute('stroke', '#94a3b8'); // slate-400
-            line.setAttribute('stroke-width', '2');
-            svgCanvas.appendChild(line);
-        });
-    }
-
-    // --- EVENT HANDLERS ---
-
-    function handleSelectProduct(productId) {
-        selectedProductId = productId;
-        addFeatureBtn.disabled = false;
+    function renderAll() {
         renderProducts();
         renderFeatures();
+        setTimeout(drawConnectors, 0);
+    }
+
+    function renderProducts() {
+        productsListEl.innerHTML = '';
+        products.forEach(product => {
+            let itemClass = 'list-item p-3 border rounded-md cursor-pointer flex justify-between items-center transition-colors border-slate-300 hover:bg-slate-100';
+            if (selectedItem.type === 'product' && product.id === selectedItem.id) {
+                itemClass += ' selected';
+            } else if (selectedItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === selectedItem.id)) {
+                itemClass += ' linked';
+            }
+
+            const item = document.createElement('div');
+            item.className = itemClass;
+            item.dataset.id = product.id;
+            item.onclick = () => handleSelectItem('product', product.id);
+            item.innerHTML = `
+                <span>${product.name}</span>
+                <div class="list-item-actions space-x-2">
+                    <button onclick="event.stopPropagation(); handleEditProduct('${product.id}')" class="text-slate-500 hover:text-blue-600" title="Edit">&#9998;</button>
+                    <button onclick="event.stopPropagation(); handleDeleteProduct('${product.id}')" class="text-slate-500 hover:text-red-600" title="Delete">&#10006;</button>
+                </div>`;
+            productsListEl.appendChild(item);
+        });
+    }
+
+    function renderFeatures() {
+        featuresListEl.innerHTML = '';
+        features.forEach(feature => {
+            let itemClass = 'list-item p-3 border rounded-md cursor-pointer flex justify-between items-center transition-colors border-slate-300 hover:bg-slate-100';
+            let linkButton = '';
+
+            if (selectedItem.type === 'feature' && feature.id === selectedItem.id) {
+                itemClass += ' selected';
+            } else if (selectedItem.type === 'product') {
+                const isLinked = links.some(l => l.productId === selectedItem.id && l.featureId === feature.id);
+                if (isLinked) itemClass += ' linked';
+                const btnText = isLinked ? 'Unlink' : 'Link';
+                const btnColor = isLinked ? 'bg-amber-500 hover:bg-amber-600' : 'bg-teal-500 hover:bg-teal-600';
+                linkButton = `<button onclick="event.stopPropagation(); handleToggleLink('${feature.id}')" class="text-xs text-white px-2 py-1 rounded ${btnColor}">${btnText}</button>`;
+            }
+
+            const item = document.createElement('div');
+            item.className = itemClass;
+            item.dataset.id = feature.id;
+            item.onclick = () => handleSelectItem('feature', feature.id);
+            item.innerHTML = `
+                <span>${feature.name}</span>
+                <div class="flex items-center gap-2">
+                    ${linkButton}
+                    <div class="list-item-actions space-x-2">
+                        <button onclick="event.stopPropagation(); handleEditFeature('${feature.id}')" class="text-slate-500 hover:text-blue-600" title="Edit">&#9998;</button>
+                        <button onclick="event.stopPropagation(); handleDeleteFeature('${feature.id}')" class="text-slate-500 hover:text-red-600" title="Delete">&#10006;</button>
+                    </div>
+                </div>`;
+            featuresListEl.appendChild(item);
+        });
+    }
+    
+    function drawConnectors() {
+        svgCanvas.innerHTML = '';
+        if (!selectedItem.id) return;
+
+        if (selectedItem.type === 'product') {
+            const productEl = document.querySelector(`#products-list .list-item[data-id="${selectedItem.id}"]`);
+            if (!productEl) return;
+            const linkedFeatureIds = links.filter(l => l.productId === selectedItem.id).map(l => l.featureId);
+            linkedFeatureIds.forEach(featureId => {
+                const featureEl = document.querySelector(`#features-list .list-item[data-id="${featureId}"]`);
+                if (featureEl) drawBezierCurve(productEl, featureEl);
+            });
+        } else if (selectedItem.type === 'feature') {
+            const featureEl = document.querySelector(`#features-list .list-item[data-id="${selectedItem.id}"]`);
+            if (!featureEl) return;
+            const linkedProductIds = links.filter(l => l.featureId === selectedItem.id).map(l => l.productId);
+            linkedProductIds.forEach(productId => {
+                const productEl = document.querySelector(`#products-list .list-item[data-id="${productId}"]`);
+                if (productEl) drawBezierCurve(productEl, featureEl);
+            });
+        }
+    }
+
+    function drawBezierCurve(startEl, endEl) {
+        const startRect = startEl.getBoundingClientRect();
+        const endRect = endEl.getBoundingClientRect();
+        const x1 = startRect.right;
+        const y1 = startRect.top + startRect.height / 2;
+        const x2 = endRect.left;
+        const y2 = endRect.top + endRect.height / 2;
+        const cx = (x1 + x2) / 2;
+        const pathData = `M ${x1},${y1} C ${cx},${y1} ${cx},${y2} ${x2},${y2}`;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathData);
+        path.setAttribute('stroke', '#94a3b8');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('fill', 'none');
+        svgCanvas.appendChild(path);
+    }
+
+    // --- MODAL HANDLERS ---
+    function openInputModal(title, value, callback) {
+        modalTitle.textContent = title;
+        modalInput.value = value;
+        onSaveCallback = callback;
+        inputModal.classList.remove('hidden');
+        modalInput.focus();
+    }
+    function closeInputModal() { inputModal.classList.add('hidden'); onSaveCallback = null; }
+    function handleModalSave() {
+        if (onSaveCallback && modalInput.value.trim()) onSaveCallback(modalInput.value.trim());
+        closeInputModal();
+    }
+    function openConfirmModal(text, callback) {
+        confirmModalText.textContent = text;
+        onConfirmCallback = callback;
+        confirmModal.classList.remove('hidden');
+    }
+    function closeConfirmModal() { confirmModal.classList.add('hidden'); onConfirmCallback = null; }
+    function handleModalConfirm() {
+        if (onConfirmCallback) onConfirmCallback();
+        closeConfirmModal();
+    }
+    modalInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleModalSave();
+        if (e.key === 'Escape') closeInputModal();
+    });
+
+    // --- EVENT HANDLERS ---
+    function handleSelectItem(type, id) {
+        if (selectedItem.id === id && selectedItem.type === type) {
+            selectedItem = { id: null, type: null }; // Deselect
+        } else {
+            selectedItem = { id, type };
+        }
+        renderAll();
     }
 
     function handleAddProduct() {
-        const name = prompt("Enter the new product name:");
-        if (name) {
-            products.push({
-                id: `prod_${Date.now()}`,
-                name: name,
-                features: []
-            });
+        openInputModal('Enter new product name', '', (name) => {
+            products.push({ id: crypto.randomUUID(), name: name });
             renderProducts();
-        }
+        });
     }
-
     function handleAddFeature() {
-        if (!selectedProductId) return;
-        const name = prompt("Enter the new feature name:");
-        if (name) {
-            const product = products.find(p => p.id === selectedProductId);
-            product.features.push({
-                id: `feat_${Date.now()}`,
-                name: name
-            });
+        openInputModal('Enter new feature name', '', (name) => {
+            features.push({ id: crypto.randomUUID(), name: name });
             renderFeatures();
-        }
+        });
     }
-    
-    function handleEditProduct(productId) {
-        const product = products.find(p => p.id === productId);
-        const newName = prompt("Edit product name:", product.name);
-        if (newName) {
+    function handleEditProduct(id) {
+        const product = products.find(p => p.id === id);
+        openInputModal('Edit product name', product.name, (newName) => {
             product.name = newName;
             renderProducts();
-        }
+        });
     }
-
-    function handleDeleteProduct(productId) {
-        if (confirm("Are you sure you want to delete this product and all its linked features?")) {
-            products = products.filter(p => p.id !== productId);
-            if (selectedProductId === productId) {
-                selectedProductId = null;
-                addFeatureBtn.disabled = true;
-                renderFeatures();
-            }
-            renderProducts();
-        }
+    function handleDeleteProduct(id) {
+        openConfirmModal('This will delete the product and all its links. Continue?', () => {
+            products = products.filter(p => p.id !== id);
+            links = links.filter(l => l.productId !== id);
+            if (selectedItem.id === id) selectedItem = { id: null, type: null };
+            renderAll();
+        });
     }
-    
-    function handleEditFeature(featureId) {
-        const product = products.find(p => p.id === selectedProductId);
-        const feature = product.features.find(f => f.id === featureId);
-        const newName = prompt("Edit feature name:", feature.name);
-        if (newName) {
+    function handleEditFeature(id) {
+        const feature = features.find(f => f.id === id);
+        openInputModal('Edit feature name', feature.name, (newName) => {
             feature.name = newName;
             renderFeatures();
-        }
+        });
     }
-
-    function handleDeleteFeature(featureId) {
-        if (confirm("Are you sure you want to delete this feature?")) {
-            const product = products.find(p => p.id === selectedProductId);
-            product.features = product.features.filter(f => f.id !== featureId);
-            renderFeatures();
+    function handleDeleteFeature(id) {
+        openConfirmModal('This will delete the feature and all its links. Continue?', () => {
+            features = features.filter(f => f.id !== id);
+            links = links.filter(l => l.featureId !== id);
+            if (selectedItem.id === id) selectedItem = { id: null, type: null };
+            renderAll();
+        });
+    }
+    function handleToggleLink(featureId) {
+        if (selectedItem.type !== 'product') return;
+        const productId = selectedItem.id;
+        const linkIndex = links.findIndex(l => l.productId === productId && l.featureId === featureId);
+        if (linkIndex > -1) {
+            links.splice(linkIndex, 1); // Unlink
+        } else {
+            links.push({ productId, featureId }); // Link
         }
+        renderAll();
     }
 
     // --- CSV & FILE HANDLING ---
-
     function saveMapToCSV() {
-        let csvContent = "product_id,product_name,feature_id,feature_name\n";
-        products.forEach(product => {
-            if (product.features.length > 0) {
-                product.features.forEach(feature => {
-                    const row = [product.id, `"${product.name}"`, feature.id, `"${feature.name}"`].join(',');
-                    csvContent += row + '\r\n';
+        let dataToSave = [];
+        const savedFeatures = new Set();
+        products.forEach(p => {
+            const linkedFeatures = links.filter(l => l.productId === p.id);
+            if (linkedFeatures.length > 0) {
+                linkedFeatures.forEach(l => {
+                    const f = features.find(feat => feat.id === l.featureId);
+                    if (f) {
+                        dataToSave.push({ product_id: p.id, product_name: p.name, feature_id: f.id, feature_name: f.name });
+                        savedFeatures.add(f.id);
+                    }
                 });
             } else {
-                // Save product even if it has no features
-                csvContent += [product.id, `"${product.name}"`, '', ''].join(',') + '\r\n';
+                dataToSave.push({ product_id: p.id, product_name: p.name, feature_id: '', feature_name: '' });
             }
         });
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        features.forEach(f => {
+            if (!savedFeatures.has(f.id)) {
+                dataToSave.push({ product_id: '', product_name: '', feature_id: f.id, feature_name: f.name });
+            }
+        });
+        const csv = Papa.unparse(dataToSave);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
+        link.setAttribute("href", URL.createObjectURL(blob));
         link.setAttribute("download", "product_feature_map.csv");
-        link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     }
-
     function loadMapFromCSV(event) {
         const file = event.target.files[0];
         if (!file) return;
-
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: function(results) {
-                if (!confirm("Loading a new file will replace the current map. Continue?")) return;
-                
-                const newProducts = new Map();
-                results.data.forEach(row => {
-                    if (!row.product_id || !row.product_name) return;
-
-                    // Add product if it doesn't exist
-                    if (!newProducts.has(row.product_id)) {
-                        newProducts.set(row.product_id, {
-                            id: row.product_id,
-                            name: row.product_name.replace(/"/g, ''),
-                            features: []
-                        });
-                    }
-                    
-                    // Add feature if it exists in the row
-                    if (row.feature_id && row.feature_name) {
-                        const product = newProducts.get(row.product_id);
-                        product.features.push({
-                            id: row.feature_id,
-                            name: row.feature_name.replace(/"/g, '')
-                        });
-                    }
-                });
-
-                products = Array.from(newProducts.values());
-                selectedProductId = null;
-                addFeatureBtn.disabled = true;
-                renderProducts();
-                renderFeatures();
-            }
+        openConfirmModal('Loading a new file will replace the current map. Continue?', () => {
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    const tempProducts = new Map();
+                    const tempFeatures = new Map();
+                    const tempLinks = [];
+                    results.data.forEach(row => {
+                        if (row.product_id && row.product_name && !tempProducts.has(row.product_id)) {
+                            tempProducts.set(row.product_id, { id: row.product_id, name: row.product_name });
+                        }
+                        if (row.feature_id && row.feature_name && !tempFeatures.has(row.feature_id)) {
+                            tempFeatures.set(row.feature_id, { id: row.feature_id, name: row.feature_name });
+                        }
+                        if (row.product_id && row.feature_id) {
+                            tempLinks.push({ productId: row.product_id, featureId: row.feature_id });
+                        }
+                    });
+                    products = Array.from(tempProducts.values());
+                    features = Array.from(tempFeatures.values());
+                    links = tempLinks;
+                    selectedItem = { id: null, type: null };
+                    renderAll();
+                }
+            });
         });
     }
 
     // --- INITIALIZATION & RESIZE ---
     window.addEventListener('resize', drawConnectors);
-    // Initial render
-    renderProducts();
-    renderFeatures();
+    renderAll();
     </script>
 </body>
 </html>
-
