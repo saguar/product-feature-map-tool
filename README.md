@@ -27,4 +27,4 @@ This site can be served on Heroku using the [NGINX buildpack](https://github.com
 heroku buildpacks:set heroku-community/nginx
 ```
 
-The repository already includes `config/nginx.conf.erb` with a minimal configuration. No `static.json` file is required for this setup.
+The repository already includes `config/nginx.conf.erb` with a minimal configuration. A `static.json` file is also present for compatibility with hosts that use it, but it isn't required when deploying via the NGINX buildpack.
