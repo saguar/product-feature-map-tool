@@ -81,6 +81,24 @@
             border-color: #3b82f6;
             background-color: #eff6ff;
         }
+        :root {
+            --connector-color: #94a3b8;
+        }
+        html.dark {
+            --connector-color: #cbd5e1;
+        }
+        html.theme-blue {
+            --connector-color: #0ea5e9;
+        }
+        html.theme-green {
+            --connector-color: #10b981;
+        }
+        html.theme-blue body {
+            background-color: #e0f2fe;
+        }
+        html.theme-green body {
+            background-color: #ecfdf5;
+        }
     </style>
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 </head>
@@ -111,9 +129,12 @@
                 <button onclick="exportToPNG()" class="bg-purple-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-purple-700 transition-colors shadow">Export (PNG)</button>
             </div>
             <div class="ml-auto">
-                <button id="theme-toggle" onclick="toggleTheme()" class="p-2 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
-                    <span id="theme-icon">🌙</span>
-                </button>
+                <select id="theme-select" class="p-2 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="blue">Blue</option>
+                    <option value="green">Green</option>
+                </select>
             </div>
         </div>
 
@@ -476,7 +497,7 @@
         const pathData = `M ${x1},${y1} C ${cx},${y1} ${cx},${y2} ${x2},${y2}`;
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', pathData);
-        const strokeColor = document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#94a3b8';
+        const strokeColor = getComputedStyle(document.documentElement).getPropertyValue('--connector-color').trim() || '#94a3b8';
         path.setAttribute('stroke', strokeColor);
         path.setAttribute('stroke-width', '2');
         path.setAttribute('fill', 'none');
@@ -810,35 +831,34 @@
         reader.readAsText(file);
     }
 
-    // --- THEME TOGGLE ---
-    const themeToggleBtn = document.getElementById('theme-toggle');
-    const themeIcon = document.getElementById('theme-icon');
+    // --- THEME SELECTION ---
+    const themeSelect = document.getElementById('theme-select');
+    const themes = ['light', 'dark', 'blue', 'green'];
 
     function applyTheme(theme) {
         const htmlEl = document.documentElement;
+        themes.forEach(t => htmlEl.classList.remove('theme-' + t));
+        htmlEl.classList.remove('dark');
         if (theme === 'dark') {
             htmlEl.classList.add('dark');
-            themeIcon.textContent = '☀';
-        } else {
-            htmlEl.classList.remove('dark');
-            themeIcon.textContent = '🌙';
         }
+        htmlEl.classList.add('theme-' + theme);
     }
 
-    function toggleTheme() {
-        const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-        const newTheme = current === 'dark' ? 'light' : 'dark';
-        localStorage.setItem('theme', newTheme);
-        applyTheme(newTheme);
+    function changeTheme(theme) {
+        localStorage.setItem('theme', theme);
+        applyTheme(theme);
     }
 
     function initTheme() {
         const stored = localStorage.getItem('theme');
         const preferred = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        applyTheme(stored || preferred);
+        const theme = stored || preferred;
+        applyTheme(theme);
+        themeSelect.value = theme;
     }
 
-    themeToggleBtn.addEventListener('click', toggleTheme);
+    themeSelect.addEventListener('change', (e) => changeTheme(e.target.value));
 
     // --- INITIALIZATION & RESIZE ---
     window.addEventListener('resize', drawConnectors);
