@@ -192,6 +192,26 @@
     let currentAddType = 'product';
     let currentAddMode = 'single';
 
+    function generateUUID() {
+        if (typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID();
+        }
+        if (crypto.getRandomValues) {
+            const bytes = crypto.getRandomValues(new Uint8Array(16));
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
+            return [...bytes].map((b, i) => {
+                const s = b.toString(16).padStart(2, '0');
+                return (i === 4 || i === 6 || i === 8 || i === 10 ? '-' : '') + s;
+            }).join('');
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
     // --- DOM ELEMENTS ---
     const productsListEl = document.getElementById('products-list');
     const featuresListEl = document.getElementById('features-list');
@@ -471,10 +491,10 @@
             const name = document.getElementById('add-modal-input-single').value.trim();
             if (name) {
                 if (currentAddType === 'product') {
-                    products.push({ id: crypto.randomUUID(), name: name, parentId: null, isCollapsed: false });
+                    products.push({ id: generateUUID(), name: name, parentId: null, isCollapsed: false });
                     renderProducts();
                 } else {
-                    features.push({ id: crypto.randomUUID(), name: name });
+                    features.push({ id: generateUUID(), name: name });
                     renderFeatures();
                 }
             }
@@ -486,10 +506,10 @@
             
             if (names.length > 0) {
                 if (currentAddType === 'product') {
-                    names.forEach(name => products.push({ id: crypto.randomUUID(), name: name, parentId: null, isCollapsed: false }));
+                    names.forEach(name => products.push({ id: generateUUID(), name: name, parentId: null, isCollapsed: false }));
                     renderProducts();
                 } else {
-                    names.forEach(name => features.push({ id: crypto.randomUUID(), name: name }));
+                    names.forEach(name => features.push({ id: generateUUID(), name: name }));
                     renderFeatures();
                 }
             }
@@ -523,7 +543,7 @@
         if (selectedItem.type !== 'product' || !selectedItem.id) return;
         openInputModal('Enter new child product name', '', (name) => {
             const parentId = selectedItem.id;
-            products.push({ id: crypto.randomUUID(), name: name, parentId: parentId, isCollapsed: false });
+            products.push({ id: generateUUID(), name: name, parentId: parentId, isCollapsed: false });
             const parent = products.find(p => p.id === parentId);
             if (parent) parent.isCollapsed = false;
             renderProducts();
@@ -533,7 +553,7 @@
         const parentId = rightClickedProductId;
         if (!parentId) return;
         openInputModal('Enter new child product name', '', (name) => {
-            products.push({ id: crypto.randomUUID(), name: name, parentId: parentId, isCollapsed: false });
+            products.push({ id: generateUUID(), name: name, parentId: parentId, isCollapsed: false });
             const parent = products.find(p => p.id === parentId);
             if (parent) parent.isCollapsed = false;
             renderProducts();
