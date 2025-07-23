@@ -4,287 +4,334 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Product-Feature Relationship Map</title>
-    
-    <!-- Vis.js for graph visualization -->
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    
-    <!-- PapaParse for CSV handling -->
-    <script type="text/javascript" src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
-    
-    <!-- Tailwind CSS for modern styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <style>
-        body {
+        body, html {
             overflow: hidden;
+            height: 100%;
+            font-family: 'Inter', sans-serif;
         }
-        #relation-map {
+        /* Style for the main container */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            height: calc(100vh - 80px); /* Full height minus top bar */
+        }
+        /* Style for selected items in lists */
+        .list-item.selected {
+            background-color: #dbeafe; /* blue-100 */
+            border-color: #3b82f6; /* blue-500 */
+            font-weight: 600;
+        }
+        /* SVG canvas for drawing connector lines */
+        #svg-connector-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            background-color: #f8fafc;
-            background-image: radial-gradient(#d1d5db 1px, transparent 0);
-            background-size: 20px 20px;
+            pointer-events: none; /* Allows clicks to pass through */
+            z-index: 0;
         }
-        input[type="file"] { display: none; }
-        #context-menu { position: absolute; z-index: 20; display: none; }
-
-        /* Styles for the static control panel */
-        #control-panel .panel-content {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: center;
-            gap: 1.5rem; /* Increased gap for better spacing */
+        .list-item-actions {
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
         }
-        #control-panel .panel-content > div {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-         #control-panel .panel-content h3 {
-            display: none; /* Hide titles in static mode for a cleaner look */
+        .list-item:hover .list-item-actions {
+            opacity: 1;
         }
     </style>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 </head>
-<body class="bg-slate-100 font-sans">
+<body class="bg-slate-50">
 
-    <div id="app-container" class="w-screen h-screen flex flex-col">
-        <!-- Static Control Panel -->
-        <div id="control-panel" class="bg-white shadow-md border-b border-slate-200">
-            <div class="panel-content p-4">
-                 <!-- Add new element section -->
-                <div class="add-element-section">
-                    <input type="text" id="node-name-input" placeholder="Element name..." class="px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition w-48">
-                    <select id="node-type-select" class="px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
-                        <option value="product">Product</option>
-                        <option value="feature">Feature</option>
-                    </select>
-                    <button onclick="addNode()" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow">
-                        Add
-                    </button>
-                </div>
-                
-                <div class="h-8 border-l border-slate-300"></div>
+    <div class="w-full h-full flex flex-col">
+        <!-- Top Control Bar -->
+        <div class="w-full bg-white shadow-md p-4 flex items-center justify-center gap-6 border-b border-slate-200 z-10">
+            <button onclick="handleAddProduct()" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow">Add Product</button>
+            <button id="add-feature-btn" onclick="handleAddFeature()" class="bg-sky-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-sky-700 transition-colors shadow disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>Add Feature</button>
+            
+            <div class="h-8 border-l border-slate-300"></div>
 
-                <!-- File and View section -->
-                <div class="file-view-section">
-                    <button onclick="saveMapToCSV()" class="bg-green-600 text-white font-semibold p-2 rounded-md hover:bg-green-700 transition-colors shadow text-sm">Save (CSV)</button>
-                    <label for="csv-file-input" class="bg-gray-600 text-white font-semibold p-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer text-sm text-center">Load (CSV)</label>
-                    <input type="file" id="csv-file-input" accept=".csv" onchange="loadMapFromCSV(event)">
-                    <button onclick="exportToPNG()" class="bg-purple-600 text-white font-semibold p-2 rounded-md hover:bg-purple-700 transition-colors shadow text-sm">Export (PNG)</button>
-                    <button onclick="fitToScreen()" class="bg-yellow-500 text-white font-semibold p-2 rounded-md hover:bg-yellow-600 transition-colors shadow text-sm">Fit to Screen</button>
-                </div>
-
-                <div class="h-8 border-l border-slate-300"></div>
-
-                 <!-- Settings section -->
-                <div class="settings-section">
-                     <button id="settings-btn" onclick="openSettingsModal()" class="bg-slate-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-slate-700 transition-colors shadow">
-                        Map Settings
-                    </button>
-                </div>
-            </div>
+            <button onclick="saveMapToCSV()" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow">Save (CSV)</button>
+            <label for="csv-file-input" class="bg-gray-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer">Load (CSV)</label>
+            <input type="file" id="csv-file-input" accept=".csv" onchange="loadMapFromCSV(event)">
         </div>
 
-        <!-- Map Container -->
-        <div id="map-wrapper" class="flex-grow relative">
-            <div id="relation-map" class="absolute inset-0"></div>
-        </div>
-    </div>
-    
-    <!-- Custom Context Menu -->
-    <div id="context-menu" class="bg-white rounded-md shadow-lg border border-slate-200 w-48">
-        <ul class="py-1">
-            <li onclick="addNodeFromContext('product')" class="px-4 py-2 hover:bg-slate-100 cursor-pointer text-slate-700">Add Product</li>
-            <li onclick="addNodeFromContext('feature')" class="px-4 py-2 hover:bg-slate-100 cursor-pointer text-slate-700">Add Feature</li>
-        </ul>
-    </div>
+        <!-- Main Content Area -->
+        <main class="flex-grow p-8 relative">
+            <div class="main-container">
+                <!-- Products Column -->
+                <div id="products-column" class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 overflow-y-auto">
+                    <h2 class="text-xl font-bold text-slate-800 mb-4 text-center">Products</h2>
+                    <div id="products-list" class="space-y-2">
+                        <!-- Product items will be injected here -->
+                    </div>
+                </div>
 
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-            <h2 class="text-2xl font-bold mb-6 text-slate-800">Map Settings</h2>
-            <!-- Product Settings -->
-            <div class="mb-4">
-                <h3 class="text-lg font-semibold mb-2 text-slate-700">Product Style</h3>
-                <div class="flex items-center gap-4">
-                    <div class="flex-1"><label for="product-shape" class="block text-sm font-medium text-slate-600">Shape</label><select id="product-shape" class="mt-1 block w-full py-2 px-3 border border-slate-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"><option value="box">Box</option><option value="ellipse">Ellipse</option><option value="circle">Circle</option><option value="database">Database</option><option value="diamond">Diamond</option><option value="dot">Dot</option><option value="star">Star</option><option value="triangle">Triangle</option><option value="square">Square</option></select></div>
-                    <div class="flex-1"><label for="product-color" class="block text-sm font-medium text-slate-600">Color</label><input type="color" id="product-color" class="mt-1 block w-full h-10 border border-slate-300 rounded-md"></div>
+                <!-- Features Column -->
+                <div id="features-column" class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 overflow-y-auto">
+                    <h2 class="text-xl font-bold text-slate-800 mb-4 text-center">Features</h2>
+                    <div id="features-list" class="space-y-2">
+                         <!-- Feature items will be injected here -->
+                    </div>
                 </div>
             </div>
-            <!-- Feature Settings -->
-            <div class="mb-6">
-                <h3 class="text-lg font-semibold mb-2 text-slate-700">Feature Style</h3>
-                <div class="flex items-center gap-4">
-                    <div class="flex-1"><label for="feature-shape" class="block text-sm font-medium text-slate-600">Shape</label><select id="feature-shape" class="mt-1 block w-full py-2 px-3 border border-slate-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"><option value="ellipse">Ellipse</option><option value="box">Box</option><option value="circle">Circle</option><option value="database">Database</option><option value="diamond">Diamond</option><option value="dot">Dot</option><option value="star">Star</option><option value="triangle">Triangle</option><option value="square">Square</option></select></div>
-                    <div class="flex-1"><label for="feature-color" class="block text-sm font-medium text-slate-600">Color</label><input type="color" id="feature-color" class="mt-1 block w-full h-10 border border-slate-300 rounded-md"></div>
-                </div>
-            </div>
-            <!-- Edge Settings -->
-            <div class="mb-6">
-                <h3 class="text-lg font-semibold mb-2 text-slate-700">Link Style</h3>
-                 <div class="flex items-center gap-4">
-                    <div class="flex-1"><label for="edge-color" class="block text-sm font-medium text-slate-600">Color</label><input type="color" id="edge-color" class="mt-1 block w-full h-10 border border-slate-300 rounded-md"></div>
-                 </div>
-            </div>
-            <!-- Modal Actions -->
-            <div class="flex justify-end gap-4 mt-8">
-                <button onclick="closeSettingsModal()" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300 transition">Cancel</button>
-                <button onclick="applyMapSettings()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Apply Changes</button>
-            </div>
-        </div>
+            
+            <!-- SVG Canvas for connectors -->
+            <svg id="svg-connector-canvas"></svg>
+        </main>
     </div>
-
 
     <script>
-        // --- INITIALIZATION ---
-        const nodes = new vis.DataSet([]);
-        const edges = new vis.DataSet([]);
-        const container = document.getElementById('relation-map');
-        const data = { nodes: nodes, edges: edges };
-        let contextMenuPos = {x:0, y:0};
+    // --- DATA MANAGEMENT ---
+    let products = [];
+    let selectedProductId = null;
 
-        const options = {
-            interaction: { hover: true, multiselect: true },
-            manipulation: {
-                enabled: true, 
-                initiallyActive: false,
-                addEdge: (edgeData, callback) => {
-                    const fromNode = nodes.get(edgeData.from);
-                    const toNode = nodes.get(edgeData.to);
-                    if (fromNode.group !== toNode.group) callback(edgeData);
-                    else { alert("Error: You can only connect a Product to a Feature."); callback(null); }
-                },
-                editNode: (nodeData, callback) => callback(nodeData),
-                deleteNode: true,
-                deleteEdge: true,
-            },
-            physics: {
-                solver: 'barnesHut',
-                barnesHut: { gravitationalConstant: -8000, centralGravity: 0.1, springLength: 200 },
-            },
-            groups: {
-                product: { shape: 'box', color: { background: '#ef4444', border: '#b91c1c' }, font: { color: 'white', face: 'Inter', bold: { size: 16 } }, margin: 10 },
-                feature: { shape: 'ellipse', color: { background: '#3b82f6', border: '#1d4ed8' }, font: { color: 'white', face: 'Inter', bold: { size: 16 } }, margin: 10 }
-            },
-            edges: { color: { color: '#64748b', highlight: '#475569', hover: '#475569' }, width: 2, arrows: 'to' }
-        };
+    // --- DOM ELEMENTS ---
+    const productsListEl = document.getElementById('products-list');
+    const featuresListEl = document.getElementById('features-list');
+    const addFeatureBtn = document.getElementById('add-feature-btn');
+    const svgCanvas = document.getElementById('svg-connector-canvas');
 
-        const network = new vis.Network(container, data, options);
+    // --- RENDER FUNCTIONS ---
 
-        // --- UI & INTERACTION ---
-        const contextMenu = document.getElementById('context-menu');
-        container.addEventListener('contextmenu', (event) => {
-            event.preventDefault();
-            contextMenuPos = { x: event.clientX, y: event.clientY };
-            contextMenu.style.top = `${event.clientY}px`;
-            contextMenu.style.left = `${event.clientX}px`;
-            contextMenu.style.display = 'block';
+    /**
+     * Renders the entire list of products.
+     */
+    function renderProducts() {
+        productsListEl.innerHTML = ''; // Clear the list
+        products.forEach(product => {
+            const isSelected = product.id === selectedProductId;
+            const item = document.createElement('div');
+            item.className = `list-item p-3 border rounded-md cursor-pointer flex justify-between items-center transition-colors ${isSelected ? 'selected' : 'border-slate-300 hover:bg-slate-100'}`;
+            item.dataset.id = product.id;
+            item.onclick = () => handleSelectProduct(product.id);
+            
+            item.innerHTML = `
+                <span class="product-name">${product.name}</span>
+                <div class="list-item-actions space-x-2">
+                    <button onclick="event.stopPropagation(); handleEditProduct('${product.id}')" class="text-slate-500 hover:text-blue-600">&#9998;</button> <!-- Edit icon -->
+                    <button onclick="event.stopPropagation(); handleDeleteProduct('${product.id}')" class="text-slate-500 hover:text-red-600">&#10006;</button> <!-- Delete icon -->
+                </div>
+            `;
+            productsListEl.appendChild(item);
         });
-        window.addEventListener('click', () => { contextMenu.style.display = 'none'; });
+        drawConnectors();
+    }
 
-        // --- SETTINGS MODAL ---
-        const settingsModal = document.getElementById('settings-modal');
-        function openSettingsModal() {
-            document.getElementById('product-shape').value = options.groups.product.shape;
-            document.getElementById('product-color').value = options.groups.product.color.background;
-            document.getElementById('feature-shape').value = options.groups.feature.shape;
-            document.getElementById('feature-color').value = options.groups.feature.color.background;
-            document.getElementById('edge-color').value = options.edges.color.color;
-            settingsModal.classList.remove('hidden');
-        }
-        function closeSettingsModal() { settingsModal.classList.add('hidden'); }
-        function applyMapSettings() {
-            options.groups.product.shape = document.getElementById('product-shape').value;
-            options.groups.product.color.background = document.getElementById('product-color').value;
-            options.groups.product.color.border = document.getElementById('product-color').value;
-            options.groups.feature.shape = document.getElementById('feature-shape').value;
-            options.groups.feature.color.background = document.getElementById('feature-color').value;
-            options.groups.feature.color.border = document.getElementById('feature-color').value;
-            options.edges.color.color = document.getElementById('edge-color').value;
-            options.edges.color.highlight = document.getElementById('edge-color').value;
-            options.edges.color.hover = document.getElementById('edge-color').value;
-            network.setOptions(options);
-            closeSettingsModal();
+    /**
+     * Renders the features for the currently selected product.
+     */
+    function renderFeatures() {
+        featuresListEl.innerHTML = ''; // Clear the list
+        if (!selectedProductId) {
+            featuresListEl.innerHTML = '<p class="text-slate-400 text-center">Select a product to see its features.</p>';
+            return;
         }
 
-        // --- CORE FUNCTIONS ---
-        function addNode(name, type, coords) {
-            const nodeName = name || document.getElementById('node-name-input').value.trim();
-            const nodeType = type || document.getElementById('node-type-select').value;
-            if (nodeName) {
-                const nodeData = { id: crypto.randomUUID(), label: nodeName, group: nodeType };
-                if(coords) {
-                    const canvasPos = network.DOMtoCanvas(coords);
-                    nodeData.x = canvasPos.x;
-                    nodeData.y = canvasPos.y;
-                }
-                nodes.add(nodeData);
-                if(!name) document.getElementById('node-name-input').value = '';
-            } else { alert("Please enter a name for the element."); }
+        const product = products.find(p => p.id === selectedProductId);
+        if (!product || !product.features || product.features.length === 0) {
+            featuresListEl.innerHTML = '<p class="text-slate-400 text-center">No features linked to this product.</p>';
+            return;
         }
-        function addNodeFromContext(type) {
-             const name = prompt(`Enter a name for the new ${type}:`);
-             if(name) addNode(name, type, contextMenuPos);
-        }
-        function fitToScreen() { network.fit(); }
-        function exportToPNG() {
-            const canvas = network.canvas.getContext().canvas;
-            const dataURL = canvas.toDataURL('image/png');
-            const link = document.createElement('a');
-            link.href = dataURL;
-            link.download = 'relationship-map.png';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-        function saveMapToCSV() {
-            if (edges.length === 0) { alert("No relationships to save."); return; }
-            const csvRows = [];
-            const headers = ['source_id', 'source_label', 'source_type', 'target_id', 'target_label', 'target_type'];
-            csvRows.push(headers.join(','));
-            edges.get().forEach(edge => {
-                const fromNode = nodes.get(edge.from);
-                const toNode = nodes.get(edge.to);
-                const cleanFromLabel = `"${fromNode.label.replace(/"/g, '""')}"`;
-                const cleanToLabel = `"${toNode.label.replace(/"/g, '""')}"`;
-                const row = [fromNode.id, cleanFromLabel, fromNode.group, toNode.id, cleanToLabel, toNode.group];
-                csvRows.push(row.join(','));
+
+        product.features.forEach(feature => {
+            const item = document.createElement('div');
+            item.className = 'list-item p-3 border border-slate-300 rounded-md flex justify-between items-center';
+            item.dataset.id = feature.id;
+            item.innerHTML = `
+                <span>${feature.name}</span>
+                <div class="list-item-actions space-x-2">
+                    <button onclick="event.stopPropagation(); handleEditFeature('${feature.id}')" class="text-slate-500 hover:text-blue-600">&#9998;</button>
+                    <button onclick="event.stopPropagation(); handleDeleteFeature('${feature.id}')" class="text-slate-500 hover:text-red-600">&#10006;</button>
+                </div>
+            `;
+            featuresListEl.appendChild(item);
+        });
+        drawConnectors();
+    }
+    
+    /**
+     * Draws SVG lines connecting the selected product to its features.
+     */
+    function drawConnectors() {
+        svgCanvas.innerHTML = '';
+        if (!selectedProductId) return;
+
+        const productEl = document.querySelector(`.list-item[data-id="${selectedProductId}"]`);
+        if (!productEl) return;
+
+        const productRect = productEl.getBoundingClientRect();
+        const startX = productRect.right;
+        const startY = productRect.top + productRect.height / 2;
+
+        const featureItems = document.querySelectorAll('#features-list .list-item');
+        featureItems.forEach(featureEl => {
+            const featureRect = featureEl.getBoundingClientRect();
+            const endX = featureRect.left;
+            const endY = featureRect.top + featureRect.height / 2;
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', startX);
+            line.setAttribute('y1', startY);
+            line.setAttribute('x2', endX);
+            line.setAttribute('y2', endY);
+            line.setAttribute('stroke', '#94a3b8'); // slate-400
+            line.setAttribute('stroke-width', '2');
+            svgCanvas.appendChild(line);
+        });
+    }
+
+    // --- EVENT HANDLERS ---
+
+    function handleSelectProduct(productId) {
+        selectedProductId = productId;
+        addFeatureBtn.disabled = false;
+        renderProducts();
+        renderFeatures();
+    }
+
+    function handleAddProduct() {
+        const name = prompt("Enter the new product name:");
+        if (name) {
+            products.push({
+                id: `prod_${Date.now()}`,
+                name: name,
+                features: []
             });
-            const csvString = csvRows.join('\n');
-            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            link.setAttribute("href", URL.createObjectURL(blob));
-            link.setAttribute("download", "relationship_map.csv");
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            renderProducts();
         }
-        function loadMapFromCSV(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (confirm("Loading a new file will replace the current map. Continue?")) {
-                        nodes.clear();
-                        edges.clear();
-                        const loadedNodes = new Map();
-                        results.data.forEach(row => {
-                            if (row.source_id && !loadedNodes.has(row.source_id)) nodes.add({ id: row.source_id, label: row.source_label, group: row.source_type });
-                            if (row.target_id && !loadedNodes.has(row.target_id)) nodes.add({ id: row.target_id, label: row.target_label, group: row.target_type });
-                            if (row.source_id && row.target_id) edges.add({ from: row.source_id, to: row.target_id, id: crypto.randomUUID() });
+    }
+
+    function handleAddFeature() {
+        if (!selectedProductId) return;
+        const name = prompt("Enter the new feature name:");
+        if (name) {
+            const product = products.find(p => p.id === selectedProductId);
+            product.features.push({
+                id: `feat_${Date.now()}`,
+                name: name
+            });
+            renderFeatures();
+        }
+    }
+    
+    function handleEditProduct(productId) {
+        const product = products.find(p => p.id === productId);
+        const newName = prompt("Edit product name:", product.name);
+        if (newName) {
+            product.name = newName;
+            renderProducts();
+        }
+    }
+
+    function handleDeleteProduct(productId) {
+        if (confirm("Are you sure you want to delete this product and all its linked features?")) {
+            products = products.filter(p => p.id !== productId);
+            if (selectedProductId === productId) {
+                selectedProductId = null;
+                addFeatureBtn.disabled = true;
+                renderFeatures();
+            }
+            renderProducts();
+        }
+    }
+    
+    function handleEditFeature(featureId) {
+        const product = products.find(p => p.id === selectedProductId);
+        const feature = product.features.find(f => f.id === featureId);
+        const newName = prompt("Edit feature name:", feature.name);
+        if (newName) {
+            feature.name = newName;
+            renderFeatures();
+        }
+    }
+
+    function handleDeleteFeature(featureId) {
+        if (confirm("Are you sure you want to delete this feature?")) {
+            const product = products.find(p => p.id === selectedProductId);
+            product.features = product.features.filter(f => f.id !== featureId);
+            renderFeatures();
+        }
+    }
+
+    // --- CSV & FILE HANDLING ---
+
+    function saveMapToCSV() {
+        let csvContent = "product_id,product_name,feature_id,feature_name\n";
+        products.forEach(product => {
+            if (product.features.length > 0) {
+                product.features.forEach(feature => {
+                    const row = [product.id, `"${product.name}"`, feature.id, `"${feature.name}"`].join(',');
+                    csvContent += row + '\r\n';
+                });
+            } else {
+                // Save product even if it has no features
+                csvContent += [product.id, `"${product.name}"`, '', ''].join(',') + '\r\n';
+            }
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "product_feature_map.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function loadMapFromCSV(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                if (!confirm("Loading a new file will replace the current map. Continue?")) return;
+                
+                const newProducts = new Map();
+                results.data.forEach(row => {
+                    if (!row.product_id || !row.product_name) return;
+
+                    // Add product if it doesn't exist
+                    if (!newProducts.has(row.product_id)) {
+                        newProducts.set(row.product_id, {
+                            id: row.product_id,
+                            name: row.product_name.replace(/"/g, ''),
+                            features: []
                         });
-                        network.fit();
                     }
-                    event.target.value = '';
-                },
-                error: (error) => { alert("An error occurred while reading the CSV file."); console.error("PapaParse Error:", error); }
-            });
-        }
-    </script>
+                    
+                    // Add feature if it exists in the row
+                    if (row.feature_id && row.feature_name) {
+                        const product = newProducts.get(row.product_id);
+                        product.features.push({
+                            id: row.feature_id,
+                            name: row.feature_name.replace(/"/g, '')
+                        });
+                    }
+                });
 
+                products = Array.from(newProducts.values());
+                selectedProductId = null;
+                addFeatureBtn.disabled = true;
+                renderProducts();
+                renderFeatures();
+            }
+        });
+    }
+
+    // --- INITIALIZATION & RESIZE ---
+    window.addEventListener('resize', drawConnectors);
+    // Initial render
+    renderProducts();
+    renderFeatures();
+    </script>
 </body>
 </html>
+
