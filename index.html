@@ -221,6 +221,8 @@
     const inputModal = document.getElementById('input-modal'), modalTitle = document.getElementById('modal-title'), modalInput = document.getElementById('modal-input');
     const confirmModal = document.getElementById('confirm-modal'), confirmModalText = document.getElementById('confirm-modal-text');
     const addModal = document.getElementById('add-modal'), addModalTitle = document.getElementById('add-modal-title');
+    const productsColumnEl = document.getElementById('products-column');
+    const featuresColumnEl = document.getElementById('features-column');
 
     // --- MODAL STATE ---
     let onSaveCallback = null;
@@ -766,6 +768,16 @@
     window.addEventListener('click', () => {
         productContextMenu.style.display = 'none';
     });
+    let scrollFrame = null;
+    function scheduleConnectorDraw() {
+        if (scrollFrame) return;
+        scrollFrame = requestAnimationFrame(() => {
+            drawConnectors();
+            scrollFrame = null;
+        });
+    }
+    productsColumnEl.addEventListener('scroll', scheduleConnectorDraw);
+    featuresColumnEl.addEventListener('scroll', scheduleConnectorDraw);
     document.addEventListener('DOMContentLoaded', () => {
         setMode('editor');
     });
