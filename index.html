@@ -212,6 +212,15 @@
         });
     }
 
+    function isDescendant(ancestorId, descendantId) {
+        let current = products.find(p => p.id === descendantId);
+        while (current && current.parentId) {
+            if (current.parentId === ancestorId) return true;
+            current = products.find(p => p.id === current.parentId);
+        }
+        return false;
+    }
+
     // --- DOM ELEMENTS ---
     const productsListEl = document.getElementById('products-list');
     const featuresListEl = document.getElementById('features-list');
@@ -662,6 +671,10 @@
         const draggedProduct = products.find(p => p.id === draggedProductId);
         const targetProduct = products.find(p => p.id === targetProductId);
         if (!draggedProduct || !targetProduct || draggedProductId === targetProductId) return;
+        if (isDescendant(draggedProductId, targetProductId)) {
+            alert('Cannot move a product into one of its descendants.');
+            return;
+        }
 
         const indicator = document.querySelector('.drop-indicator');
         const dropTarget = e.target.closest('.list-item');
