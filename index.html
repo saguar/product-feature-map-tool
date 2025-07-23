@@ -66,6 +66,18 @@
             z-index: 20;
             display: none;
         }
+        .list-item.dragging {
+            opacity: 0.5;
+        }
+        .drop-indicator {
+            height: 2px;
+            background-color: #3b82f6;
+            margin: 2px 0;
+        }
+        .add-mode-tab.active {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
     </style>
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 </head>
@@ -82,17 +94,17 @@
             <div class="h-8 border-l border-slate-300"></div>
 
             <div id="editor-controls" class="flex items-center gap-6">
-                <button onclick="handleAddProduct()" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow">Add Product</button>
+                <button onclick="openAddModal('product')" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow">Add Product</button>
                 <button id="add-child-btn" onclick="handleAddChildProduct()" class="bg-indigo-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>Add Child</button>
-                <button onclick="handleAddFeature()" class="bg-sky-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-sky-700 transition-colors shadow">Add Feature</button>
+                <button onclick="openAddModal('feature')" class="bg-sky-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-sky-700 transition-colors shadow">Add Feature</button>
             </div>
             
             <div class="h-8 border-l border-slate-300"></div>
 
             <div>
-                <button id="save-btn" onclick="saveMapToCSV()" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow">Save (JSON)</button>
-                <label for="csv-file-input" class="bg-gray-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer">Load (JSON)</label>
-                <input type="file" id="csv-file-input" accept=".json" onchange="loadMapFromCSV(event)">
+                <button id="save-btn" onclick="saveMapToJSON()" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow">Save (JSON)</button>
+                <label for="json-file-input" class="bg-gray-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer">Load (JSON)</label>
+                <input type="file" id="json-file-input" accept=".json" onchange="loadMapFromJSON(event)">
                 <button onclick="exportToPNG()" class="bg-purple-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-purple-700 transition-colors shadow">Export (PNG)</button>
             </div>
         </div>
@@ -143,6 +155,29 @@
             </div>
         </div>
     </div>
+    <div id="add-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 id="add-modal-title" class="text-lg font-bold mb-4"></h3>
+            <div class="border-b border-gray-200 mb-4">
+                <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                    <button onclick="switchAddMode('single')" id="single-tab" class="add-mode-tab whitespace-nowrap py-2 px-4 border-b-2 font-medium text-sm">Single</button>
+                    <button onclick="switchAddMode('bulk')" id="bulk-tab" class="add-mode-tab whitespace-nowrap py-2 px-4 border-b-2 font-medium text-sm">Bulk</button>
+                </nav>
+            </div>
+            <div id="single-add-panel">
+                <label for="add-modal-input-single" class="block text-sm font-medium text-gray-700">Name</label>
+                <input type="text" id="add-modal-input-single" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-md">
+            </div>
+            <div id="bulk-add-panel" class="hidden">
+                <label for="add-modal-input-bulk" class="block text-sm font-medium text-gray-700">Names (one per line)</label>
+                <textarea id="add-modal-input-bulk" rows="5" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-md"></textarea>
+            </div>
+            <div class="mt-4 flex justify-end gap-2">
+                <button onclick="closeAddModal()" class="px-4 py-2 bg-slate-200 rounded-md hover:bg-slate-300">Cancel</button>
+                <button onclick="handleBulkAddSave()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
+            </div>
+        </div>
+    </div>
 
     <script>
     // --- DATA MANAGEMENT ---
@@ -153,6 +188,9 @@
     let hoveredItem = { id: null, type: null };
     let currentMode = 'editor';
     let rightClickedProductId = null;
+    let draggedProductId = null;
+    let currentAddType = 'product';
+    let currentAddMode = 'single';
 
     // --- DOM ELEMENTS ---
     const productsListEl = document.getElementById('products-list');
@@ -162,6 +200,7 @@
     const productContextMenu = document.getElementById('product-context-menu');
     const inputModal = document.getElementById('input-modal'), modalTitle = document.getElementById('modal-title'), modalInput = document.getElementById('modal-input');
     const confirmModal = document.getElementById('confirm-modal'), confirmModalText = document.getElementById('confirm-modal-text');
+    const addModal = document.getElementById('add-modal'), addModalTitle = document.getElementById('add-modal-title');
 
     // --- MODAL STATE ---
     let onSaveCallback = null;
@@ -176,8 +215,14 @@
 
     function renderProducts() {
         productsListEl.innerHTML = '';
-        const topLevelProducts = products.filter(p => !p.parentId);
-        topLevelProducts.forEach(product => renderProductItem(product, 0));
+        const productTree = buildProductTree();
+        productTree.forEach(product => renderProductItem(product, 0));
+    }
+
+    function buildProductTree(parentId = null) {
+        return products
+            .filter(p => p.parentId === parentId)
+            .map(p => ({ ...p, children: buildProductTree(p.id) }));
     }
 
     function renderProductItem(product, level) {
@@ -186,20 +231,24 @@
             itemClass += ' cursor-pointer hover:bg-slate-100';
             if (selectedItem.type === 'product' && product.id === selectedItem.id) itemClass += ' selected';
         }
-        if (selectedItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === selectedItem.id)) {
-            itemClass += ' linked';
-        }
-        if (currentMode === 'viewer' && hoveredItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === hoveredItem.id)) {
-            itemClass += ' linked';
-        }
-        if (currentMode === 'viewer' && hoveredItem.type === 'product' && product.id === hoveredItem.id) {
-            itemClass += ' hovered';
-        }
+        if (selectedItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === selectedItem.id)) itemClass += ' linked';
+        if (currentMode === 'viewer' && hoveredItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === hoveredItem.id)) itemClass += ' linked';
+        if (currentMode === 'viewer' && hoveredItem.type === 'product' && product.id === hoveredItem.id) itemClass += ' hovered';
 
         const item = document.createElement('div');
         item.className = itemClass;
         item.dataset.id = product.id;
         item.style.marginLeft = `${level * 2}rem`;
+        
+        if (currentMode === 'editor') {
+            item.setAttribute('draggable', true);
+            item.ondragstart = (e) => handleDragStart(e, product.id);
+            item.ondragover = (e) => handleDragOver(e, product.id);
+            item.ondragleave = (e) => handleDragLeave(e);
+            item.ondrop = (e) => handleDrop(e, product.id);
+            item.ondragend = (e) => handleDragEnd(e);
+        }
+
         item.onclick = () => handleSelectItem('product', product.id);
         item.onmouseover = (e) => { e.stopPropagation(); handleHoverItem('product', product.id); };
         item.onmouseout = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
@@ -213,7 +262,7 @@
             productContextMenu.style.display = 'block';
         };
 
-        const hasChildren = products.some(p => p.parentId === product.id);
+        const hasChildren = product.children && product.children.length > 0;
         const toggleIcon = hasChildren ? `<span class="toggle-children" onclick="event.stopPropagation(); toggleCollapse('${product.id}')">${product.isCollapsed ? '&#9658;' : '&#9660;'}</span>` : '<span class="toggle-children"></span>';
 
         item.innerHTML = `
@@ -229,8 +278,7 @@
         productsListEl.appendChild(item);
 
         if (hasChildren && !product.isCollapsed) {
-            const children = products.filter(p => p.parentId === product.id);
-            children.forEach(child => renderProductItem(child, level + 1));
+            product.children.forEach(child => renderProductItem(child, level + 1));
         }
     }
 
@@ -239,7 +287,6 @@
         features.forEach(feature => {
             let itemClass = 'list-item p-3 border rounded-md flex justify-between items-center transition-colors border-slate-300';
             let linkButton = '';
-
             if (currentMode === 'editor') {
                 itemClass += ' cursor-pointer hover:bg-slate-100';
                 if (selectedItem.type === 'feature' && feature.id === selectedItem.id) itemClass += ' selected';
@@ -251,12 +298,8 @@
                     linkButton = `<button onclick="event.stopPropagation(); handleToggleLink('${feature.id}')" class="text-xs text-white px-2 py-1 rounded ${btnColor}">${btnText}</button>`;
                 }
             }
-            if (currentMode === 'viewer' && hoveredItem.type === 'product' && links.some(l => l.featureId === feature.id && l.productId === hoveredItem.id)) {
-                itemClass += ' linked';
-            }
-            if (currentMode === 'viewer' && hoveredItem.type === 'feature' && feature.id === hoveredItem.id) {
-                itemClass += ' hovered';
-            }
+            if (currentMode === 'viewer' && hoveredItem.type === 'product' && links.some(l => l.featureId === feature.id && l.productId === hoveredItem.id)) itemClass += ' linked';
+            if (currentMode === 'viewer' && hoveredItem.type === 'feature' && feature.id === hoveredItem.id) itemClass += ' hovered';
 
             const item = document.createElement('div');
             item.className = itemClass;
@@ -349,6 +392,58 @@
         if (e.key === 'Escape') closeInputModal();
     });
 
+    // --- ADD MODAL (SINGLE/BULK) ---
+    function openAddModal(type) {
+        currentAddType = type;
+        addModalTitle.textContent = `Add new ${type}(s)`;
+        switchAddMode('single');
+        addModal.classList.remove('hidden');
+        document.getElementById('add-modal-input-single').focus();
+    }
+    function closeAddModal() {
+        addModal.classList.add('hidden');
+        document.getElementById('add-modal-input-single').value = '';
+        document.getElementById('add-modal-input-bulk').value = '';
+    }
+    function switchAddMode(mode) {
+        currentAddMode = mode;
+        document.getElementById('single-tab').classList.toggle('active', mode === 'single');
+        document.getElementById('bulk-tab').classList.toggle('active', mode === 'bulk');
+        document.getElementById('single-add-panel').style.display = mode === 'single' ? 'block' : 'none';
+        document.getElementById('bulk-add-panel').style.display = mode === 'bulk' ? 'block' : 'none';
+    }
+    function handleBulkAddSave() {
+        if (currentAddMode === 'single') {
+            const name = document.getElementById('add-modal-input-single').value.trim();
+            if (name) {
+                if (currentAddType === 'product') {
+                    products.push({ id: crypto.randomUUID(), name: name, parentId: null, isCollapsed: false });
+                    renderProducts();
+                } else {
+                    features.push({ id: crypto.randomUUID(), name: name });
+                    renderFeatures();
+                }
+            }
+        } else { // Bulk mode
+            const names = document.getElementById('add-modal-input-bulk').value
+                .split('\n')
+                .map(name => name.trim())
+                .filter(name => name);
+            
+            if (names.length > 0) {
+                if (currentAddType === 'product') {
+                    names.forEach(name => products.push({ id: crypto.randomUUID(), name: name, parentId: null, isCollapsed: false }));
+                    renderProducts();
+                } else {
+                    names.forEach(name => features.push({ id: crypto.randomUUID(), name: name }));
+                    renderFeatures();
+                }
+            }
+        }
+        closeAddModal();
+    }
+
+
     // --- EVENT HANDLERS ---
     function handleSelectItem(type, id) {
         if (currentMode !== 'editor') return;
@@ -368,35 +463,31 @@
     }
 
     function handleAddProduct() {
-        openInputModal('Enter new product name', '', (name) => {
-            products.push({ id: crypto.randomUUID(), name: name, parentId: null, isCollapsed: false });
-            renderProducts();
-        });
+        openAddModal('product');
     }
     function handleAddChildProduct() {
         if (selectedItem.type !== 'product' || !selectedItem.id) return;
         openInputModal('Enter new child product name', '', (name) => {
-            products.push({ id: crypto.randomUUID(), name: name, parentId: selectedItem.id, isCollapsed: false });
-            const parent = products.find(p => p.id === selectedItem.id);
+            const parentId = selectedItem.id;
+            products.push({ id: crypto.randomUUID(), name: name, parentId: parentId, isCollapsed: false });
+            const parent = products.find(p => p.id === parentId);
             if (parent) parent.isCollapsed = false;
             renderProducts();
         });
     }
     function handleAddChildFromContext() {
-        if (!rightClickedProductId) return;
+        const parentId = rightClickedProductId;
+        if (!parentId) return;
         openInputModal('Enter new child product name', '', (name) => {
-            products.push({ id: crypto.randomUUID(), name: name, parentId: rightClickedProductId, isCollapsed: false });
-            const parent = products.find(p => p.id === rightClickedProductId);
+            products.push({ id: crypto.randomUUID(), name: name, parentId: parentId, isCollapsed: false });
+            const parent = products.find(p => p.id === parentId);
             if (parent) parent.isCollapsed = false;
             renderProducts();
         });
         rightClickedProductId = null;
     }
     function handleAddFeature() {
-        openInputModal('Enter new feature name', '', (name) => {
-            features.push({ id: crypto.randomUUID(), name: name });
-            renderFeatures();
-        });
+        openAddModal('feature');
     }
     function handleEditProduct(id) {
         const product = products.find(p => p.id === id);
@@ -415,10 +506,8 @@
                 childrenToDelete.shift();
                 childrenToDelete.push(...products.filter(p => p.parentId === childId));
             }
-            
             products = products.filter(p => !toDelete.includes(p.id));
             links = links.filter(l => !toDelete.includes(l.productId));
-            
             if (toDelete.includes(selectedItem.id)) {
                 selectedItem = { id: null, type: null };
                 addChildBtn.disabled = true;
@@ -461,6 +550,77 @@
         renderProducts();
     }
     
+    // --- DRAG & DROP HANDLERS ---
+    function handleDragStart(e, productId) {
+        draggedProductId = productId;
+        e.target.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        const targetEl = e.target.closest('.list-item');
+        if (!targetEl) return;
+        const rect = targetEl.getBoundingClientRect();
+        const middleY = rect.top + rect.height / 2;
+        
+        document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+
+        if (e.clientY < middleY) {
+            targetEl.parentNode.insertBefore(indicator, targetEl);
+        } else {
+            targetEl.parentNode.insertBefore(indicator, targetEl.nextSibling);
+        }
+    }
+
+    function handleDragLeave(e) {
+        document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+    }
+
+    function handleDrop(e, targetProductId) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const draggedProduct = products.find(p => p.id === draggedProductId);
+        const targetProduct = products.find(p => p.id === targetProductId);
+        if (!draggedProduct || !targetProduct || draggedProductId === targetProductId) return;
+
+        const indicator = document.querySelector('.drop-indicator');
+        const dropTarget = e.target.closest('.list-item');
+        
+        const draggedIndex = products.findIndex(p => p.id === draggedProductId);
+        products.splice(draggedIndex, 1);
+
+        const dropTargetRect = dropTarget.getBoundingClientRect();
+        const dropY = e.clientY - dropTargetRect.top;
+
+        if (dropY > dropTargetRect.height * 0.25 && dropY < dropTargetRect.height * 0.75) {
+            draggedProduct.parentId = targetProductId;
+            const parent = products.find(p => p.id === targetProductId);
+            if (parent) parent.isCollapsed = false;
+            let targetIndex = products.findIndex(p => p.id === targetProductId);
+            products.splice(targetIndex + 1, 0, draggedProduct);
+        } else {
+            draggedProduct.parentId = targetProduct.parentId;
+            let targetIndex = products.findIndex(p => p.id === targetProductId);
+            if (e.clientY < dropTargetRect.top + dropTargetRect.height / 2) {
+                 products.splice(targetIndex, 0, draggedProduct);
+            } else {
+                 products.splice(targetIndex + 1, 0, draggedProduct);
+            }
+        }
+        
+        renderAll();
+    }
+
+    function handleDragEnd(e) {
+        document.querySelectorAll('.list-item.dragging').forEach(el => el.classList.remove('dragging'));
+        document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+        draggedProductId = null;
+    }
+    
     // --- MODE MANAGEMENT ---
     function setMode(newMode) {
         currentMode = newMode;
@@ -491,7 +651,7 @@
         });
     }
 
-    function saveMapToCSV() {
+    function saveMapToJSON() {
         const dataToSave = {
             products: products,
             features: features,
@@ -505,7 +665,7 @@
         link.click();
         document.body.removeChild(link);
     }
-    function loadMapFromCSV(event) {
+    function loadMapFromJSON(event) {
         const file = event.target.files[0];
         if (!file) return;
         
