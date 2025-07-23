@@ -53,6 +53,19 @@
             color: white;
             font-weight: 600;
         }
+        .toggle-children {
+            cursor: pointer;
+            width: 1rem;
+            height: 1rem;
+            display: inline-block;
+            margin-right: 0.25rem;
+            user-select: none;
+        }
+        .context-menu {
+            position: absolute;
+            z-index: 20;
+            display: none;
+        }
     </style>
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 </head>
@@ -70,16 +83,16 @@
 
             <div id="editor-controls" class="flex items-center gap-6">
                 <button onclick="handleAddProduct()" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow">Add Product</button>
+                <button id="add-child-btn" onclick="handleAddChildProduct()" class="bg-indigo-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>Add Child</button>
                 <button onclick="handleAddFeature()" class="bg-sky-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-sky-700 transition-colors shadow">Add Feature</button>
             </div>
             
             <div class="h-8 border-l border-slate-300"></div>
 
             <div>
-                <button id="save-btn" onclick="saveMapToCSV()" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow">Save (CSV)</button>
-                <label for="csv-file-input" class="bg-gray-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer">Load (CSV)</label>
-                <input type="file" id="csv-file-input" accept=".csv" onchange="loadMapFromCSV(event)">
-                <!-- Added Export to PNG button -->
+                <button id="save-btn" onclick="saveMapToCSV()" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow">Save (JSON)</button>
+                <label for="csv-file-input" class="bg-gray-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer">Load (JSON)</label>
+                <input type="file" id="csv-file-input" accept=".json" onchange="loadMapFromCSV(event)">
                 <button onclick="exportToPNG()" class="bg-purple-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-purple-700 transition-colors shadow">Export (PNG)</button>
             </div>
         </div>
@@ -100,6 +113,13 @@
             </div>
             <svg id="svg-connector-canvas"></svg>
         </main>
+    </div>
+    
+    <!-- Context Menus -->
+    <div id="product-context-menu" class="context-menu bg-white rounded-md shadow-lg border border-slate-200 w-48">
+        <ul class="py-1">
+            <li onclick="handleAddChildFromContext()" class="px-4 py-2 hover:bg-slate-100 cursor-pointer text-slate-700">Add Child</li>
+        </ul>
     </div>
 
     <!-- Modals -->
@@ -132,11 +152,14 @@
     let selectedItem = { id: null, type: null };
     let hoveredItem = { id: null, type: null };
     let currentMode = 'editor';
+    let rightClickedProductId = null;
 
     // --- DOM ELEMENTS ---
     const productsListEl = document.getElementById('products-list');
     const featuresListEl = document.getElementById('features-list');
     const svgCanvas = document.getElementById('svg-connector-canvas');
+    const addChildBtn = document.getElementById('add-child-btn');
+    const productContextMenu = document.getElementById('product-context-menu');
     const inputModal = document.getElementById('input-modal'), modalTitle = document.getElementById('modal-title'), modalInput = document.getElementById('modal-input');
     const confirmModal = document.getElementById('confirm-modal'), confirmModalText = document.getElementById('confirm-modal-text');
 
@@ -153,38 +176,62 @@
 
     function renderProducts() {
         productsListEl.innerHTML = '';
-        products.forEach(product => {
-            let itemClass = 'list-item p-3 border rounded-md flex justify-between items-center transition-colors border-slate-300';
-            if (currentMode === 'editor') {
-                itemClass += ' cursor-pointer hover:bg-slate-100';
-                if (selectedItem.type === 'product' && product.id === selectedItem.id) itemClass += ' selected';
-            }
-            if (selectedItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === selectedItem.id)) {
-                itemClass += ' linked';
-            }
-            if (currentMode === 'viewer' && hoveredItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === hoveredItem.id)) {
-                itemClass += ' linked';
-            }
-            if (currentMode === 'viewer' && hoveredItem.type === 'product' && product.id === hoveredItem.id) {
-                itemClass += ' hovered';
-            }
+        const topLevelProducts = products.filter(p => !p.parentId);
+        topLevelProducts.forEach(product => renderProductItem(product, 0));
+    }
 
-            const item = document.createElement('div');
-            item.className = itemClass;
-            item.dataset.id = product.id;
-            item.onclick = () => handleSelectItem('product', product.id);
-            item.onmouseover = () => handleHoverItem('product', product.id);
-            item.onmouseout = () => handleHoverItem(null, null);
+    function renderProductItem(product, level) {
+        let itemClass = 'list-item p-3 border rounded-md flex justify-between items-center transition-colors border-slate-300';
+        if (currentMode === 'editor') {
+            itemClass += ' cursor-pointer hover:bg-slate-100';
+            if (selectedItem.type === 'product' && product.id === selectedItem.id) itemClass += ' selected';
+        }
+        if (selectedItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === selectedItem.id)) {
+            itemClass += ' linked';
+        }
+        if (currentMode === 'viewer' && hoveredItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === hoveredItem.id)) {
+            itemClass += ' linked';
+        }
+        if (currentMode === 'viewer' && hoveredItem.type === 'product' && product.id === hoveredItem.id) {
+            itemClass += ' hovered';
+        }
 
-            item.innerHTML = `
+        const item = document.createElement('div');
+        item.className = itemClass;
+        item.dataset.id = product.id;
+        item.style.marginLeft = `${level * 2}rem`;
+        item.onclick = () => handleSelectItem('product', product.id);
+        item.onmouseover = (e) => { e.stopPropagation(); handleHoverItem('product', product.id); };
+        item.onmouseout = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
+        item.oncontextmenu = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (currentMode !== 'editor') return;
+            rightClickedProductId = product.id;
+            productContextMenu.style.top = `${e.clientY}px`;
+            productContextMenu.style.left = `${e.clientX}px`;
+            productContextMenu.style.display = 'block';
+        };
+
+        const hasChildren = products.some(p => p.parentId === product.id);
+        const toggleIcon = hasChildren ? `<span class="toggle-children" onclick="event.stopPropagation(); toggleCollapse('${product.id}')">${product.isCollapsed ? '&#9658;' : '&#9660;'}</span>` : '<span class="toggle-children"></span>';
+
+        item.innerHTML = `
+            <div class="flex items-center">
+                ${toggleIcon}
                 <span>${product.name}</span>
-                ${currentMode === 'editor' ? `
-                <div class="list-item-actions space-x-2">
-                    <button onclick="event.stopPropagation(); handleEditProduct('${product.id}')" class="text-slate-500 hover:text-blue-600" title="Edit">&#9998;</button>
-                    <button onclick="event.stopPropagation(); handleDeleteProduct('${product.id}')" class="text-slate-500 hover:text-red-600" title="Delete">&#10006;</button>
-                </div>` : ''}`;
-            productsListEl.appendChild(item);
-        });
+            </div>
+            ${currentMode === 'editor' ? `
+            <div class="list-item-actions space-x-2">
+                <button onclick="event.stopPropagation(); handleEditProduct('${product.id}')" class="text-slate-500 hover:text-blue-600" title="Edit">&#9998;</button>
+                <button onclick="event.stopPropagation(); handleDeleteProduct('${product.id}')" class="text-slate-500 hover:text-red-600" title="Delete">&#10006;</button>
+            </div>` : ''}`;
+        productsListEl.appendChild(item);
+
+        if (hasChildren && !product.isCollapsed) {
+            const children = products.filter(p => p.parentId === product.id);
+            children.forEach(child => renderProductItem(child, level + 1));
+        }
     }
 
     function renderFeatures() {
@@ -215,8 +262,8 @@
             item.className = itemClass;
             item.dataset.id = feature.id;
             item.onclick = () => handleSelectItem('feature', feature.id);
-            item.onmouseover = () => handleHoverItem('feature', feature.id);
-            item.onmouseout = () => handleHoverItem(null, null);
+            item.onmouseover = (e) => { e.stopPropagation(); handleHoverItem('feature', feature.id); };
+            item.onmouseout = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
 
             item.innerHTML = `
                 <span>${feature.name}</span>
@@ -310,6 +357,7 @@
         } else {
             selectedItem = { id, type };
         }
+        addChildBtn.disabled = selectedItem.type !== 'product';
         renderAll();
     }
     
@@ -321,9 +369,28 @@
 
     function handleAddProduct() {
         openInputModal('Enter new product name', '', (name) => {
-            products.push({ id: crypto.randomUUID(), name: name });
+            products.push({ id: crypto.randomUUID(), name: name, parentId: null, isCollapsed: false });
             renderProducts();
         });
+    }
+    function handleAddChildProduct() {
+        if (selectedItem.type !== 'product' || !selectedItem.id) return;
+        openInputModal('Enter new child product name', '', (name) => {
+            products.push({ id: crypto.randomUUID(), name: name, parentId: selectedItem.id, isCollapsed: false });
+            const parent = products.find(p => p.id === selectedItem.id);
+            if (parent) parent.isCollapsed = false;
+            renderProducts();
+        });
+    }
+    function handleAddChildFromContext() {
+        if (!rightClickedProductId) return;
+        openInputModal('Enter new child product name', '', (name) => {
+            products.push({ id: crypto.randomUUID(), name: name, parentId: rightClickedProductId, isCollapsed: false });
+            const parent = products.find(p => p.id === rightClickedProductId);
+            if (parent) parent.isCollapsed = false;
+            renderProducts();
+        });
+        rightClickedProductId = null;
     }
     function handleAddFeature() {
         openInputModal('Enter new feature name', '', (name) => {
@@ -339,10 +406,23 @@
         });
     }
     function handleDeleteProduct(id) {
-        openConfirmModal('This will delete the product and all its links. Continue?', () => {
-            products = products.filter(p => p.id !== id);
-            links = links.filter(l => l.productId !== id);
-            if (selectedItem.id === id) selectedItem = { id: null, type: null };
+        openConfirmModal('This will delete the product and ALL its children. Continue?', () => {
+            let toDelete = [id];
+            let childrenToDelete = products.filter(p => p.parentId === id);
+            while(childrenToDelete.length > 0) {
+                const childId = childrenToDelete[0].id;
+                toDelete.push(childId);
+                childrenToDelete.shift();
+                childrenToDelete.push(...products.filter(p => p.parentId === childId));
+            }
+            
+            products = products.filter(p => !toDelete.includes(p.id));
+            links = links.filter(l => !toDelete.includes(l.productId));
+            
+            if (toDelete.includes(selectedItem.id)) {
+                selectedItem = { id: null, type: null };
+                addChildBtn.disabled = true;
+            }
             renderAll();
         });
     }
@@ -366,11 +446,19 @@
         const productId = selectedItem.id;
         const linkIndex = links.findIndex(l => l.productId === productId && l.featureId === featureId);
         if (linkIndex > -1) {
-            links.splice(linkIndex, 1); // Unlink
+            links.splice(linkIndex, 1);
         } else {
-            links.push({ productId, featureId }); // Link
+            links.push({ productId, featureId });
         }
         renderAll();
+    }
+    
+    function toggleCollapse(productId) {
+        const product = products.find(p => p.id === productId);
+        if (product) {
+            product.isCollapsed = !product.isCollapsed;
+        }
+        renderProducts();
     }
     
     // --- MODE MANAGEMENT ---
@@ -378,6 +466,7 @@
         currentMode = newMode;
         selectedItem = { id: null, type: null };
         hoveredItem = { id: null, type: null };
+        addChildBtn.disabled = true;
 
         document.getElementById('editor-mode-btn').classList.toggle('active', newMode === 'editor');
         document.getElementById('viewer-mode-btn').classList.toggle('active', newMode === 'viewer');
@@ -391,9 +480,7 @@
     function exportToPNG() {
         const exportArea = document.getElementById('export-area');
         html2canvas(exportArea, {
-            // Ensure the background is captured correctly
             backgroundColor: '#f8fafc',
-            // Improve rendering of SVG elements
             allowTaint: true,
             useCORS: true
         }).then(canvas => {
@@ -405,32 +492,15 @@
     }
 
     function saveMapToCSV() {
-        let dataToSave = [];
-        const savedFeatures = new Set();
-        products.forEach(p => {
-            const linkedFeatures = links.filter(l => l.productId === p.id);
-            if (linkedFeatures.length > 0) {
-                linkedFeatures.forEach(l => {
-                    const f = features.find(feat => feat.id === l.featureId);
-                    if (f) {
-                        dataToSave.push({ product_id: p.id, product_name: p.name, feature_id: f.id, feature_name: f.name });
-                        savedFeatures.add(f.id);
-                    }
-                });
-            } else {
-                dataToSave.push({ product_id: p.id, product_name: p.name, feature_id: '', feature_name: '' });
-            }
-        });
-        features.forEach(f => {
-            if (!savedFeatures.has(f.id)) {
-                dataToSave.push({ product_id: '', product_name: '', feature_id: f.id, feature_name: f.name });
-            }
-        });
-        const csv = Papa.unparse(dataToSave);
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const dataToSave = {
+            products: products,
+            features: features,
+            links: links
+        };
+        const blob = new Blob([JSON.stringify(dataToSave, null, 2)], { type: 'application/json;charset=utf-8;' });
         const link = document.createElement("a");
         link.setAttribute("href", URL.createObjectURL(blob));
-        link.setAttribute("download", "product_feature_map.csv");
+        link.setAttribute("download", "product_feature_map.json");
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -438,36 +508,30 @@
     function loadMapFromCSV(event) {
         const file = event.target.files[0];
         if (!file) return;
-        openConfirmModal('Loading a new file will replace the current map. Continue?', () => {
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    const tempProducts = new Map();
-                    const tempFeatures = new Map();
-                    const tempLinks = [];
-                    results.data.forEach(row => {
-                        if (row.product_id && row.product_name && !tempProducts.has(row.product_id)) {
-                            tempProducts.set(row.product_id, { id: row.product_id, name: row.product_name });
-                        }
-                        if (row.feature_id && row.feature_name && !tempFeatures.has(row.feature_id)) {
-                            tempFeatures.set(row.feature_id, { id: row.feature_id, name: row.feature_name });
-                        }
-                        if (row.product_id && row.feature_id) {
-                            tempLinks.push({ productId: row.product_id, featureId: row.feature_id });
-                        }
-                    });
-                    products = Array.from(tempProducts.values());
-                    features = Array.from(tempFeatures.values());
-                    links = tempLinks;
-                    setMode('editor'); // Reset to editor mode after loading
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            openConfirmModal('Loading a new file will replace the current map. Continue?', () => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    products = data.products || [];
+                    features = data.features || [];
+                    links = data.links || [];
+                    setMode('editor');
+                } catch (error) {
+                    alert('Error parsing file. Please make sure it is a valid map file.');
+                    console.error("Error parsing JSON:", error);
                 }
             });
-        });
+        };
+        reader.readAsText(file);
     }
 
     // --- INITIALIZATION & RESIZE ---
     window.addEventListener('resize', drawConnectors);
+    window.addEventListener('click', () => {
+        productContextMenu.style.display = 'none';
+    });
     document.addEventListener('DOMContentLoaded', () => {
         setMode('editor');
     });
