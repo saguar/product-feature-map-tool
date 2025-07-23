@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Product-Feature Relationship Map</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+    <!-- Added html2canvas library for PNG export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         body, html {
             overflow: hidden;
@@ -26,6 +29,9 @@
             background-color: #e0e7ff; /* indigo-100 */
             border-style: dashed;
         }
+        .list-item.hovered {
+            background-color: #fef9c3; /* yellow-100 */
+        }
         #svg-connector-canvas {
             position: absolute;
             top: 0;
@@ -42,6 +48,11 @@
         .list-item:hover .list-item-actions {
             opacity: 1;
         }
+        .mode-button.active {
+            background-color: #0284c7; /* sky-600 */
+            color: white;
+            font-weight: 600;
+        }
     </style>
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 </head>
@@ -50,16 +61,31 @@
     <div class="w-full h-full flex flex-col">
         <!-- Top Control Bar -->
         <div class="w-full bg-white shadow-md p-4 flex items-center justify-center gap-6 border-b border-slate-200 z-10">
-            <button onclick="handleAddProduct()" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow">Add Product</button>
-            <button onclick="handleAddFeature()" class="bg-sky-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-sky-700 transition-colors shadow">Add Feature</button>
+            <div id="mode-switcher" class="bg-slate-200 rounded-lg p-1">
+                <button id="editor-mode-btn" onclick="setMode('editor')" class="mode-button px-3 py-1 rounded-md text-sm text-slate-700 transition-colors">Editor</button>
+                <button id="viewer-mode-btn" onclick="setMode('viewer')" class="mode-button px-3 py-1 rounded-md text-sm text-slate-700 transition-colors">Viewer</button>
+            </div>
+            
             <div class="h-8 border-l border-slate-300"></div>
-            <button onclick="saveMapToCSV()" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow">Save (CSV)</button>
-            <label for="csv-file-input" class="bg-gray-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer">Load (CSV)</label>
-            <input type="file" id="csv-file-input" accept=".csv" onchange="loadMapFromCSV(event)">
+
+            <div id="editor-controls" class="flex items-center gap-6">
+                <button onclick="handleAddProduct()" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow">Add Product</button>
+                <button onclick="handleAddFeature()" class="bg-sky-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-sky-700 transition-colors shadow">Add Feature</button>
+            </div>
+            
+            <div class="h-8 border-l border-slate-300"></div>
+
+            <div>
+                <button id="save-btn" onclick="saveMapToCSV()" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow">Save (CSV)</button>
+                <label for="csv-file-input" class="bg-gray-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer">Load (CSV)</label>
+                <input type="file" id="csv-file-input" accept=".csv" onchange="loadMapFromCSV(event)">
+                <!-- Added Export to PNG button -->
+                <button onclick="exportToPNG()" class="bg-purple-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-purple-700 transition-colors shadow">Export (PNG)</button>
+            </div>
         </div>
 
         <!-- Main Content Area -->
-        <main class="flex-grow p-8 relative">
+        <main id="export-area" class="flex-grow p-8 relative bg-slate-50">
             <div class="main-container">
                 <!-- Products Column -->
                 <div id="products-column" class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 overflow-y-auto">
@@ -104,6 +130,8 @@
     let features = [];
     let links = [];
     let selectedItem = { id: null, type: null };
+    let hoveredItem = { id: null, type: null };
+    let currentMode = 'editor';
 
     // --- DOM ELEMENTS ---
     const productsListEl = document.getElementById('products-list');
@@ -126,23 +154,35 @@
     function renderProducts() {
         productsListEl.innerHTML = '';
         products.forEach(product => {
-            let itemClass = 'list-item p-3 border rounded-md cursor-pointer flex justify-between items-center transition-colors border-slate-300 hover:bg-slate-100';
-            if (selectedItem.type === 'product' && product.id === selectedItem.id) {
-                itemClass += ' selected';
-            } else if (selectedItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === selectedItem.id)) {
+            let itemClass = 'list-item p-3 border rounded-md flex justify-between items-center transition-colors border-slate-300';
+            if (currentMode === 'editor') {
+                itemClass += ' cursor-pointer hover:bg-slate-100';
+                if (selectedItem.type === 'product' && product.id === selectedItem.id) itemClass += ' selected';
+            }
+            if (selectedItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === selectedItem.id)) {
                 itemClass += ' linked';
+            }
+            if (currentMode === 'viewer' && hoveredItem.type === 'feature' && links.some(l => l.productId === product.id && l.featureId === hoveredItem.id)) {
+                itemClass += ' linked';
+            }
+            if (currentMode === 'viewer' && hoveredItem.type === 'product' && product.id === hoveredItem.id) {
+                itemClass += ' hovered';
             }
 
             const item = document.createElement('div');
             item.className = itemClass;
             item.dataset.id = product.id;
             item.onclick = () => handleSelectItem('product', product.id);
+            item.onmouseover = () => handleHoverItem('product', product.id);
+            item.onmouseout = () => handleHoverItem(null, null);
+
             item.innerHTML = `
                 <span>${product.name}</span>
+                ${currentMode === 'editor' ? `
                 <div class="list-item-actions space-x-2">
                     <button onclick="event.stopPropagation(); handleEditProduct('${product.id}')" class="text-slate-500 hover:text-blue-600" title="Edit">&#9998;</button>
                     <button onclick="event.stopPropagation(); handleDeleteProduct('${product.id}')" class="text-slate-500 hover:text-red-600" title="Delete">&#10006;</button>
-                </div>`;
+                </div>` : ''}`;
             productsListEl.appendChild(item);
         });
     }
@@ -150,31 +190,43 @@
     function renderFeatures() {
         featuresListEl.innerHTML = '';
         features.forEach(feature => {
-            let itemClass = 'list-item p-3 border rounded-md cursor-pointer flex justify-between items-center transition-colors border-slate-300 hover:bg-slate-100';
+            let itemClass = 'list-item p-3 border rounded-md flex justify-between items-center transition-colors border-slate-300';
             let linkButton = '';
 
-            if (selectedItem.type === 'feature' && feature.id === selectedItem.id) {
-                itemClass += ' selected';
-            } else if (selectedItem.type === 'product') {
-                const isLinked = links.some(l => l.productId === selectedItem.id && l.featureId === feature.id);
-                if (isLinked) itemClass += ' linked';
-                const btnText = isLinked ? 'Unlink' : 'Link';
-                const btnColor = isLinked ? 'bg-amber-500 hover:bg-amber-600' : 'bg-teal-500 hover:bg-teal-600';
-                linkButton = `<button onclick="event.stopPropagation(); handleToggleLink('${feature.id}')" class="text-xs text-white px-2 py-1 rounded ${btnColor}">${btnText}</button>`;
+            if (currentMode === 'editor') {
+                itemClass += ' cursor-pointer hover:bg-slate-100';
+                if (selectedItem.type === 'feature' && feature.id === selectedItem.id) itemClass += ' selected';
+                if (selectedItem.type === 'product') {
+                    const isLinked = links.some(l => l.productId === selectedItem.id && l.featureId === feature.id);
+                    if (isLinked) itemClass += ' linked';
+                    const btnText = isLinked ? 'Unlink' : 'Link';
+                    const btnColor = isLinked ? 'bg-amber-500 hover:bg-amber-600' : 'bg-teal-500 hover:bg-teal-600';
+                    linkButton = `<button onclick="event.stopPropagation(); handleToggleLink('${feature.id}')" class="text-xs text-white px-2 py-1 rounded ${btnColor}">${btnText}</button>`;
+                }
+            }
+            if (currentMode === 'viewer' && hoveredItem.type === 'product' && links.some(l => l.featureId === feature.id && l.productId === hoveredItem.id)) {
+                itemClass += ' linked';
+            }
+            if (currentMode === 'viewer' && hoveredItem.type === 'feature' && feature.id === hoveredItem.id) {
+                itemClass += ' hovered';
             }
 
             const item = document.createElement('div');
             item.className = itemClass;
             item.dataset.id = feature.id;
             item.onclick = () => handleSelectItem('feature', feature.id);
+            item.onmouseover = () => handleHoverItem('feature', feature.id);
+            item.onmouseout = () => handleHoverItem(null, null);
+
             item.innerHTML = `
                 <span>${feature.name}</span>
                 <div class="flex items-center gap-2">
                     ${linkButton}
+                    ${currentMode === 'editor' ? `
                     <div class="list-item-actions space-x-2">
                         <button onclick="event.stopPropagation(); handleEditFeature('${feature.id}')" class="text-slate-500 hover:text-blue-600" title="Edit">&#9998;</button>
                         <button onclick="event.stopPropagation(); handleDeleteFeature('${feature.id}')" class="text-slate-500 hover:text-red-600" title="Delete">&#10006;</button>
-                    </div>
+                    </div>` : ''}
                 </div>`;
             featuresListEl.appendChild(item);
         });
@@ -182,20 +234,21 @@
     
     function drawConnectors() {
         svgCanvas.innerHTML = '';
-        if (!selectedItem.id) return;
+        const itemToDraw = currentMode === 'editor' ? selectedItem : hoveredItem;
+        if (!itemToDraw.id) return;
 
-        if (selectedItem.type === 'product') {
-            const productEl = document.querySelector(`#products-list .list-item[data-id="${selectedItem.id}"]`);
+        if (itemToDraw.type === 'product') {
+            const productEl = document.querySelector(`#products-list .list-item[data-id="${itemToDraw.id}"]`);
             if (!productEl) return;
-            const linkedFeatureIds = links.filter(l => l.productId === selectedItem.id).map(l => l.featureId);
+            const linkedFeatureIds = links.filter(l => l.productId === itemToDraw.id).map(l => l.featureId);
             linkedFeatureIds.forEach(featureId => {
                 const featureEl = document.querySelector(`#features-list .list-item[data-id="${featureId}"]`);
                 if (featureEl) drawBezierCurve(productEl, featureEl);
             });
-        } else if (selectedItem.type === 'feature') {
-            const featureEl = document.querySelector(`#features-list .list-item[data-id="${selectedItem.id}"]`);
+        } else if (itemToDraw.type === 'feature') {
+            const featureEl = document.querySelector(`#features-list .list-item[data-id="${itemToDraw.id}"]`);
             if (!featureEl) return;
-            const linkedProductIds = links.filter(l => l.featureId === selectedItem.id).map(l => l.productId);
+            const linkedProductIds = links.filter(l => l.featureId === itemToDraw.id).map(l => l.productId);
             linkedProductIds.forEach(productId => {
                 const productEl = document.querySelector(`#products-list .list-item[data-id="${productId}"]`);
                 if (productEl) drawBezierCurve(productEl, featureEl);
@@ -204,12 +257,13 @@
     }
 
     function drawBezierCurve(startEl, endEl) {
+        const svgParentRect = svgCanvas.parentElement.getBoundingClientRect();
         const startRect = startEl.getBoundingClientRect();
         const endRect = endEl.getBoundingClientRect();
-        const x1 = startRect.right;
-        const y1 = startRect.top + startRect.height / 2;
-        const x2 = endRect.left;
-        const y2 = endRect.top + endRect.height / 2;
+        const x1 = startRect.right - svgParentRect.left;
+        const y1 = (startRect.top + startRect.height / 2) - svgParentRect.top;
+        const x2 = endRect.left - svgParentRect.left;
+        const y2 = (endRect.top + endRect.height / 2) - svgParentRect.top;
         const cx = (x1 + x2) / 2;
         const pathData = `M ${x1},${y1} C ${cx},${y1} ${cx},${y2} ${x2},${y2}`;
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -250,11 +304,18 @@
 
     // --- EVENT HANDLERS ---
     function handleSelectItem(type, id) {
+        if (currentMode !== 'editor') return;
         if (selectedItem.id === id && selectedItem.type === type) {
             selectedItem = { id: null, type: null }; // Deselect
         } else {
             selectedItem = { id, type };
         }
+        renderAll();
+    }
+    
+    function handleHoverItem(type, id) {
+        if (currentMode !== 'viewer') return;
+        hoveredItem = { type, id };
         renderAll();
     }
 
@@ -311,8 +372,38 @@
         }
         renderAll();
     }
+    
+    // --- MODE MANAGEMENT ---
+    function setMode(newMode) {
+        currentMode = newMode;
+        selectedItem = { id: null, type: null };
+        hoveredItem = { id: null, type: null };
 
-    // --- CSV & FILE HANDLING ---
+        document.getElementById('editor-mode-btn').classList.toggle('active', newMode === 'editor');
+        document.getElementById('viewer-mode-btn').classList.toggle('active', newMode === 'viewer');
+        document.getElementById('editor-controls').style.display = newMode === 'editor' ? 'flex' : 'none';
+        document.getElementById('save-btn').style.display = newMode === 'editor' ? 'inline-block' : 'none';
+
+        renderAll();
+    }
+
+    // --- EXPORT & FILE HANDLING ---
+    function exportToPNG() {
+        const exportArea = document.getElementById('export-area');
+        html2canvas(exportArea, {
+            // Ensure the background is captured correctly
+            backgroundColor: '#f8fafc',
+            // Improve rendering of SVG elements
+            allowTaint: true,
+            useCORS: true
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'product-feature-map.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }
+
     function saveMapToCSV() {
         let dataToSave = [];
         const savedFeatures = new Set();
@@ -369,8 +460,7 @@
                     products = Array.from(tempProducts.values());
                     features = Array.from(tempFeatures.values());
                     links = tempLinks;
-                    selectedItem = { id: null, type: null };
-                    renderAll();
+                    setMode('editor'); // Reset to editor mode after loading
                 }
             });
         });
@@ -378,7 +468,9 @@
 
     // --- INITIALIZATION & RESIZE ---
     window.addEventListener('resize', drawConnectors);
-    renderAll();
+    document.addEventListener('DOMContentLoaded', () => {
+        setMode('editor');
+    });
     </script>
 </body>
 </html>
