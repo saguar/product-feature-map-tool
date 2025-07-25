@@ -149,6 +149,7 @@ body, html {
     align-items: center;
     background-color: #ffffff;
     transition: background-color 0.2s;
+    margin-bottom: 5px;
 }
 
 .list-item.clickable { cursor: pointer; }
