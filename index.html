@@ -4,152 +4,53 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Product-Feature Relationship Map</title>
-    <script>
-      tailwind.config = { darkMode: 'class' };
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Removed Tailwind CSS -->
     <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
     <!-- Added html2canvas library for PNG export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <style>
-        body, html {
-            overflow: hidden;
-            height: 100%;
-            font-family: 'Inter', sans-serif;
-        }
-        .main-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            height: calc(100vh - 80px);
-        }
-        .list-item.selected {
-            background-color: #dbeafe; /* blue-100 */
-            border-color: #3b82f6; /* blue-500 */
-            font-weight: 600;
-        }
-        .list-item.linked {
-            background-color: #e0e7ff; /* indigo-100 */
-            border-style: dashed;
-        }
-        .list-item.hovered {
-            background-color: #fef9c3; /* yellow-100 */
-        }
-        #svg-connector-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 0;
-        }
-        .list-item-actions {
-            opacity: 0;
-            transition: opacity 0.2s ease-in-out;
-        }
-        .list-item:hover .list-item-actions {
-            opacity: 1;
-        }
-        .mode-button.active {
-            background-color: #0284c7; /* sky-600 */
-            color: white;
-            font-weight: 600;
-        }
-        .toggle-children {
-            cursor: pointer;
-            width: 1rem;
-            height: 1rem;
-            display: inline-block;
-            margin-right: 0.25rem;
-            user-select: none;
-        }
-        .context-menu {
-            position: absolute;
-            z-index: 20;
-            display: none;
-        }
-        .list-item.dragging {
-            opacity: 0.5;
-        }
-        .drop-indicator {
-            height: 2px;
-            background-color: #3b82f6;
-            margin: 2px 0;
-        }
-        .add-mode-tab.active {
-            border-color: #3b82f6;
-            background-color: #eff6ff;
-        }
-        :root {
-            --connector-color: #94a3b8;
-        }
-        html.dark {
-            --connector-color: #cbd5e1;
-        }
-        html.theme-blue {
-            --connector-color: #0ea5e9;
-        }
-        html.theme-green {
-            --connector-color: #10b981;
-        }
-        html.theme-blue body {
-            background-color: #e0f2fe;
-        }
-        html.theme-green body {
-            background-color: #ecfdf5;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+<body>
 
-    <div class="w-full h-full flex flex-col">
+    <div class="app-container">
         <!-- Top Control Bar -->
-        <div class="w-full bg-white dark:bg-slate-800 shadow-md p-4 flex items-center gap-6 border-b border-slate-200 dark:border-slate-700 z-10">
-            <div id="mode-switcher" class="bg-slate-200 rounded-lg p-1">
-                <button id="editor-mode-btn" onclick="setMode('editor')" class="mode-button px-3 py-1 rounded-md text-sm text-slate-700 transition-colors">Editor</button>
-                <button id="viewer-mode-btn" onclick="setMode('viewer')" class="mode-button px-3 py-1 rounded-md text-sm text-slate-700 transition-colors">Viewer</button>
+        <div class="top-bar">
+            <div id="mode-switcher" class="mode-switcher">
+                <button id="editor-mode-btn" onclick="setMode('editor')" class="mode-button">Editor</button>
+                <button id="viewer-mode-btn" onclick="setMode('viewer')" class="mode-button">Viewer</button>
             </div>
             
-            <div class="h-8 border-l border-slate-300 dark:border-slate-600"></div>
+            <div class="separator"></div>
 
-            <div id="editor-controls" class="flex items-center gap-6">
-                <button onclick="openAddModal('product')" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow">Add Product</button>
-                <button id="add-child-btn" onclick="handleAddChildProduct()" class="bg-indigo-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>Add Child</button>
-                <button onclick="openAddModal('feature')" class="bg-sky-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-sky-700 transition-colors shadow">Add Feature</button>
+            <div id="editor-controls" class="editor-controls">
+                <button onclick="openAddModal('product')" class="btn btn-blue">Add Product</button>
+                <button id="add-child-btn" onclick="handleAddChildProduct()" class="btn btn-indigo" disabled>Add Child</button>
+                <button onclick="openAddModal('feature')" class="btn btn-sky">Add Feature</button>
             </div>
-            
-            <div class="h-8 border-l border-slate-300 dark:border-slate-600"></div>
+
+            <div class="separator"></div>
 
             <div>
-                <button id="save-btn" onclick="saveMapToJSON()" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow">Save (JSON)</button>
-                <label for="json-file-input" class="bg-gray-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-gray-700 transition-colors shadow cursor-pointer">Load (JSON)</label>
+                <button id="save-btn" onclick="saveMapToJSON()" class="btn btn-green">Save (JSON)</button>
+                <label for="json-file-input" class="btn btn-gray file-label">Load (JSON)</label>
                 <input type="file" id="json-file-input" accept=".json" onchange="loadMapFromJSON(event)">
-                <button onclick="exportToPNG()" class="bg-purple-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-purple-700 transition-colors shadow">Export (PNG)</button>
-            </div>
-            <div class="ml-auto">
-                <select id="theme-select" class="p-2 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                    <option value="blue">Blue</option>
-                    <option value="green">Green</option>
-                </select>
+                <button onclick="exportToPNG()" class="btn btn-purple">Export (PNG)</button>
             </div>
         </div>
 
         <!-- Main Content Area -->
-        <main id="export-area" class="flex-grow p-8 relative bg-slate-50 dark:bg-slate-900">
+        <main id="export-area" class="export-area">
             <div class="main-container">
                 <!-- Products Column -->
-                <div id="products-column" class="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-y-auto">
-                    <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 text-center">Products</h2>
-                    <div id="products-list" class="space-y-2 list-none"></div>
+                <div id="products-column" class="column">
+                    <h2 class="column-title">Products</h2>
+                    <div id="products-list" class="items-list"></div>
                 </div>
                 <!-- Features Column -->
-                <div id="features-column" class="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-y-auto">
-                    <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 text-center">Features</h2>
-                    <div id="features-list" class="space-y-2 list-none"></div>
+                <div id="features-column" class="column">
+                    <h2 class="column-title">Features</h2>
+                    <div id="features-list" class="items-list"></div>
                 </div>
             </div>
             <svg id="svg-connector-canvas"></svg>
@@ -157,53 +58,53 @@
     </div>
     
     <!-- Context Menus -->
-    <div id="product-context-menu" class="context-menu bg-white dark:bg-slate-800 rounded-md shadow-lg border border-slate-200 dark:border-slate-700 w-48">
-        <ul class="py-1">
-            <li onclick="handleAddChildFromContext()" class="px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer text-slate-700 dark:text-slate-200">Add Child</li>
+    <div id="product-context-menu" class="context-menu">
+        <ul class="menu-list">
+            <li onclick="handleAddChildFromContext()" class="menu-item">Add Child</li>
         </ul>
     </div>
 
     <!-- Modals -->
-    <div id="input-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-sm">
+    <div id="input-modal" class="modal hidden">
+        <div class="modal-content">
             <h3 id="modal-title" class="text-lg font-bold mb-4"></h3>
-            <input type="text" id="modal-input" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 dark:text-slate-100">
-            <div class="mt-4 flex justify-end gap-2">
-                <button onclick="closeInputModal()" class="px-4 py-2 bg-slate-200 rounded-md hover:bg-slate-300">Cancel</button>
-                <button onclick="handleModalSave()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
+            <input type="text" id="modal-input" class="input-field">
+            <div class="modal-actions">
+                <button onclick="closeInputModal()" class="btn btn-gray">Cancel</button>
+                <button onclick="handleModalSave()" class="btn btn-blue">Save</button>
             </div>
         </div>
     </div>
-    <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-sm">
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-content">
             <h3 class="text-lg font-bold mb-2">Are you sure?</h3>
-            <p id="confirm-modal-text" class="text-slate-600 mb-4"></p>
-            <div class="mt-4 flex justify-end gap-2">
-                <button onclick="closeConfirmModal()" class="px-4 py-2 bg-slate-200 rounded-md hover:bg-slate-300">Cancel</button>
-                <button onclick="handleModalConfirm()" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Delete</button>
+            <p id="confirm-modal-text" class="mb-4"></p>
+            <div class="modal-actions">
+                <button onclick="closeConfirmModal()" class="btn btn-gray">Cancel</button>
+                <button onclick="handleModalConfirm()" class="btn btn-red">Delete</button>
             </div>
         </div>
     </div>
-    <div id="add-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+    <div id="add-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 36rem;">
             <h3 id="add-modal-title" class="text-lg font-bold mb-4"></h3>
-            <div class="border-b border-gray-200 dark:border-gray-600 mb-4">
-                <nav class="-mb-px flex space-x-4" aria-label="Tabs">
-                    <button onclick="switchAddMode('single')" id="single-tab" class="add-mode-tab whitespace-nowrap py-2 px-4 border-b-2 font-medium text-sm">Single</button>
-                    <button onclick="switchAddMode('bulk')" id="bulk-tab" class="add-mode-tab whitespace-nowrap py-2 px-4 border-b-2 font-medium text-sm">Bulk</button>
+            <div class="tabs-container">
+                <nav class="tabs" aria-label="Tabs">
+                    <button onclick="switchAddMode('single')" id="single-tab" class="add-mode-tab">Single</button>
+                    <button onclick="switchAddMode('bulk')" id="bulk-tab" class="add-mode-tab">Bulk</button>
                 </nav>
             </div>
             <div id="single-add-panel">
-                <label for="add-modal-input-single" class="block text-sm font-medium text-gray-700">Name</label>
-                <input type="text" id="add-modal-input-single" class="mt-1 w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 dark:text-slate-100">
+                <label for="add-modal-input-single">Name</label>
+                <input type="text" id="add-modal-input-single" class="input-field mt-1">
             </div>
             <div id="bulk-add-panel" class="hidden">
-                <label for="add-modal-input-bulk" class="block text-sm font-medium text-gray-700">Names (one per line)</label>
-                <textarea id="add-modal-input-bulk" rows="5" class="mt-1 w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 dark:text-slate-100"></textarea>
+                <label for="add-modal-input-bulk">Names (one per line)</label>
+                <textarea id="add-modal-input-bulk" rows="5" class="input-field mt-1"></textarea>
             </div>
-            <div class="mt-4 flex justify-end gap-2">
-                <button onclick="closeAddModal()" class="px-4 py-2 bg-slate-200 rounded-md hover:bg-slate-300">Cancel</button>
-                <button onclick="handleBulkAddSave()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
+            <div class="modal-actions">
+                <button onclick="closeAddModal()" class="btn btn-gray">Cancel</button>
+                <button onclick="handleBulkAddSave()" class="btn btn-blue">Save</button>
             </div>
         </div>
     </div>
@@ -311,9 +212,9 @@
     }
 
     function renderProductItem(product, level) {
-        let itemClass = 'list-item p-3 border rounded-md flex justify-between items-center transition-colors border-slate-300 dark:border-slate-600 dark:bg-slate-700';
+        let itemClass = 'list-item';
         if (currentMode === 'editor') {
-            itemClass += ' cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600';
+            itemClass += ' clickable';
             if (selectedItem.type === 'product' && product.id === selectedItem.id) itemClass += ' selected';
         }
         if (selectedItem.type === 'feature' && allLinks.some(l => l.productId === product.id && l.featureId === selectedItem.id)) itemClass += ' linked';
@@ -349,7 +250,7 @@
 
         const hasChildren = product.children && product.children.length > 0;
         const contentWrapper = document.createElement('div');
-        contentWrapper.className = 'flex items-center';
+        contentWrapper.className = 'item-content';
 
         const toggleSpan = document.createElement('span');
         toggleSpan.className = 'toggle-children';
@@ -366,18 +267,18 @@
 
         if (currentMode === 'editor') {
             const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'list-item-actions space-x-2';
+            actionsDiv.className = 'list-item-actions item-actions';
 
             const editBtn = document.createElement('button');
             editBtn.onclick = (e) => { e.stopPropagation(); handleEditProduct(product.id); };
-            editBtn.className = 'text-slate-500 hover:text-blue-600';
+            editBtn.className = 'icon-btn edit';
             editBtn.title = 'Edit';
             editBtn.innerHTML = '&#9998;';
             actionsDiv.appendChild(editBtn);
 
             const deleteBtn = document.createElement('button');
             deleteBtn.onclick = (e) => { e.stopPropagation(); handleDeleteProduct(product.id); };
-            deleteBtn.className = 'text-slate-500 hover:text-red-600';
+            deleteBtn.className = 'icon-btn delete';
             deleteBtn.title = 'Delete';
             deleteBtn.innerHTML = '&#10006;';
             actionsDiv.appendChild(deleteBtn);
@@ -394,20 +295,20 @@
     function renderFeatures() {
         featuresListEl.innerHTML = '';
         features.forEach(feature => {
-            let itemClass = 'list-item p-3 border rounded-md flex justify-between items-center transition-colors border-slate-300 dark:border-slate-600 dark:bg-slate-700';
+            let itemClass = 'list-item';
             let showLinkBtn = false;
             let isLinked = false;
-            let linkBtnColor = '';
+            let linkBtnClass = '';
             let linkBtnText = '';
             if (currentMode === 'editor') {
-                itemClass += ' cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600';
+                itemClass += ' clickable';
                 if (selectedItem.type === 'feature' && feature.id === selectedItem.id) itemClass += ' selected';
                 if (selectedItem.type === 'product') {
                     isLinked = links.some(l => l.productId === selectedItem.id && l.featureId === feature.id);
                     if (allLinks.some(l => l.productId === selectedItem.id && l.featureId === feature.id)) itemClass += ' linked';
                     showLinkBtn = true;
                     linkBtnText = isLinked ? 'Unlink' : 'Link';
-                    linkBtnColor = isLinked ? 'bg-amber-500 hover:bg-amber-600' : 'bg-teal-500 hover:bg-teal-600';
+                    linkBtnClass = isLinked ? 'btn btn-amber btn-sm' : 'btn btn-teal btn-sm';
                 }
             }
             if (currentMode === 'viewer' && hoveredItem.type === 'product' && allLinks.some(l => l.featureId === feature.id && l.productId === hoveredItem.id)) itemClass += ' linked';
@@ -425,30 +326,30 @@
             item.appendChild(nameSpan);
 
             const rightDiv = document.createElement('div');
-            rightDiv.className = 'flex items-center gap-2';
+            rightDiv.className = 'item-actions';
 
             if (showLinkBtn) {
                 const linkBtn = document.createElement('button');
                 linkBtn.onclick = (e) => { e.stopPropagation(); handleToggleLink(feature.id); };
-                linkBtn.className = `text-xs text-white px-2 py-1 rounded ${linkBtnColor}`;
+                linkBtn.className = linkBtnClass;
                 linkBtn.textContent = linkBtnText;
                 rightDiv.appendChild(linkBtn);
             }
 
             if (currentMode === 'editor') {
-                const actionsDiv = document.createElement('div');
-                actionsDiv.className = 'list-item-actions space-x-2';
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'list-item-actions item-actions';
 
                 const editBtn = document.createElement('button');
                 editBtn.onclick = (e) => { e.stopPropagation(); handleEditFeature(feature.id); };
-                editBtn.className = 'text-slate-500 hover:text-blue-600';
+                editBtn.className = 'icon-btn edit';
                 editBtn.title = 'Edit';
                 editBtn.innerHTML = '&#9998;';
                 actionsDiv.appendChild(editBtn);
 
                 const deleteBtn = document.createElement('button');
                 deleteBtn.onclick = (e) => { e.stopPropagation(); handleDeleteFeature(feature.id); };
-                deleteBtn.className = 'text-slate-500 hover:text-red-600';
+                deleteBtn.className = 'icon-btn delete';
                 deleteBtn.title = 'Delete';
                 deleteBtn.innerHTML = '&#10006;';
                 actionsDiv.appendChild(deleteBtn);
@@ -831,42 +732,6 @@
         reader.readAsText(file);
     }
 
-    // --- THEME SELECTION ---
-    const themeSelect = document.getElementById('theme-select');
-    const themes = ['light', 'dark', 'blue', 'green'];
-
-    function applyTheme(theme) {
-        const htmlEl = document.documentElement;
-        themes.forEach(t => htmlEl.classList.remove('theme-' + t));
-        htmlEl.classList.remove('dark');
-        if (theme === 'dark') {
-            htmlEl.classList.add('dark');
-        }
-        htmlEl.classList.add('theme-' + theme);
-    }
-
-    function safeSetItem(key, value) {
-        try { localStorage.setItem(key, value); } catch (e) { console.warn('Local storage unavailable', e); }
-    }
-
-    function safeGetItem(key) {
-        try { return localStorage.getItem(key); } catch (e) { console.warn('Local storage unavailable', e); return null; }
-    }
-
-    function changeTheme(theme) {
-        safeSetItem('theme', theme);
-        applyTheme(theme);
-    }
-
-    function initTheme() {
-        const stored = safeGetItem('theme');
-        const preferred = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        const theme = stored || preferred;
-        applyTheme(theme);
-        themeSelect.value = theme;
-    }
-
-    themeSelect.addEventListener('change', (e) => changeTheme(e.target.value));
 
     // --- INITIALIZATION & RESIZE ---
     window.addEventListener('resize', drawConnectors);
@@ -884,7 +749,6 @@
     productsColumnEl.addEventListener('scroll', scheduleConnectorDraw);
     featuresColumnEl.addEventListener('scroll', scheduleConnectorDraw);
     document.addEventListener('DOMContentLoaded', () => {
-        initTheme();
         setMode('editor');
     });
     </script>
