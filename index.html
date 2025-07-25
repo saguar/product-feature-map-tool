@@ -845,13 +845,21 @@
         htmlEl.classList.add('theme-' + theme);
     }
 
+    function safeSetItem(key, value) {
+        try { localStorage.setItem(key, value); } catch (e) { console.warn('Local storage unavailable', e); }
+    }
+
+    function safeGetItem(key) {
+        try { return localStorage.getItem(key); } catch (e) { console.warn('Local storage unavailable', e); return null; }
+    }
+
     function changeTheme(theme) {
-        localStorage.setItem('theme', theme);
+        safeSetItem('theme', theme);
         applyTheme(theme);
     }
 
     function initTheme() {
-        const stored = localStorage.getItem('theme');
+        const stored = safeGetItem('theme');
         const preferred = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         const theme = stored || preferred;
         applyTheme(theme);
