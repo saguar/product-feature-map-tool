@@ -9,6 +9,10 @@ This project provides an interactive "Product-Feature Relationship Map" that let
 
 The application loads libraries from CDNs, so an active internet connection is required when opening the file.
 
+## Exporting Maps
+
+Use the buttons in the top bar to export your map as **PNG** or **PDF**. The PDF format can be imported into tools like **Lucidchart**.
+
 ## Dependencies and Browser Requirements
 
 The page relies on several libraries delivered via CDN:
