@@ -311,3 +311,19 @@ body, html {
 }
 
 :root { --connector-color: #94a3b8; }
+
+/* Connector styles */
+.connector {
+    stroke: var(--connector-color);
+    stroke-width: 2;
+    fill: none;
+    opacity: 0.3;
+    pointer-events: visibleStroke;
+    transition: opacity 0.2s, stroke-width 0.2s;
+}
+
+.connector.highlight,
+.connector:hover {
+    opacity: 1;
+    stroke-width: 3;
+}
