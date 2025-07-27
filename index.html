@@ -367,26 +367,33 @@
     
     function drawConnectors() {
         svgCanvas.innerHTML = '';
-        const itemToDraw = currentMode === 'editor' ? selectedItem : hoveredItem;
-        if (!itemToDraw.id) return;
+        allLinks.forEach(link => {
+            const productEl = document.querySelector(`#products-list .list-item[data-id="${link.productId}"]`);
+            const featureEl = document.querySelector(`#features-list .list-item[data-id="${link.featureId}"]`);
+            if (productEl && featureEl) {
+                const path = drawBezierCurve(productEl, featureEl);
+                path.dataset.productId = link.productId;
+                path.dataset.featureId = link.featureId;
+            }
+        });
+        highlightConnectors();
+    }
 
-        if (itemToDraw.type === 'product') {
-            const productEl = document.querySelector(`#products-list .list-item[data-id="${itemToDraw.id}"]`);
-            if (!productEl) return;
-            const linkedFeatureIds = allLinks.filter(l => l.productId === itemToDraw.id).map(l => l.featureId);
-            linkedFeatureIds.forEach(featureId => {
-                const featureEl = document.querySelector(`#features-list .list-item[data-id="${featureId}"]`);
-                if (featureEl) drawBezierCurve(productEl, featureEl);
-            });
-        } else if (itemToDraw.type === 'feature') {
-            const featureEl = document.querySelector(`#features-list .list-item[data-id="${itemToDraw.id}"]`);
-            if (!featureEl) return;
-            const linkedProductIds = allLinks.filter(l => l.featureId === itemToDraw.id).map(l => l.productId);
-            linkedProductIds.forEach(productId => {
-                const productEl = document.querySelector(`#products-list .list-item[data-id="${productId}"]`);
-                if (productEl) drawBezierCurve(productEl, featureEl);
-            });
-        }
+    function highlightConnectors() {
+        document.querySelectorAll('.connector').forEach(path => {
+            const productId = path.dataset.productId;
+            const featureId = path.dataset.featureId;
+            let highlight = false;
+            if (selectedItem.id) {
+                if (selectedItem.type === 'product' && productId === selectedItem.id) highlight = true;
+                if (selectedItem.type === 'feature' && featureId === selectedItem.id) highlight = true;
+            }
+            if (!highlight && hoveredItem.id) {
+                if (hoveredItem.type === 'product' && productId === hoveredItem.id) highlight = true;
+                if (hoveredItem.type === 'feature' && featureId === hoveredItem.id) highlight = true;
+            }
+            path.classList.toggle('highlight', highlight);
+        });
     }
 
     function drawBezierCurve(startEl, endEl) {
@@ -401,11 +408,9 @@
         const pathData = `M ${x1},${y1} C ${cx},${y1} ${cx},${y2} ${x2},${y2}`;
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', pathData);
-        const strokeColor = getComputedStyle(document.documentElement).getPropertyValue('--connector-color').trim() || '#94a3b8';
-        path.setAttribute('stroke', strokeColor);
-        path.setAttribute('stroke-width', '2');
-        path.setAttribute('fill', 'none');
+        path.setAttribute('class', 'connector');
         svgCanvas.appendChild(path);
+        return path;
     }
 
     // --- MODAL HANDLERS ---
