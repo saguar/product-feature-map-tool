@@ -8,6 +8,8 @@
     <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
     <!-- Added html2canvas library for PNG export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Added jsPDF library for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 </head>
@@ -36,6 +38,7 @@
                 <label for="json-file-input" class="btn btn-gray file-label">Load (JSON)</label>
                 <input type="file" id="json-file-input" accept=".json" onchange="loadMapFromJSON(event)">
                 <button onclick="exportToPNG()" class="btn btn-purple">Export (PNG)</button>
+                <button onclick="exportToPDF()" class="btn btn-amber">Export (PDF)</button>
             </div>
         </div>
 
@@ -693,6 +696,24 @@
             link.download = 'product-feature-map.png';
             link.href = canvas.toDataURL('image/png');
             link.click();
+        });
+    }
+
+    function exportToPDF() {
+        const exportArea = document.getElementById('export-area');
+        html2canvas(exportArea, {
+            backgroundColor: '#f8fafc',
+            allowTaint: true,
+            useCORS: true
+        }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new window.jspdf.jsPDF({
+                orientation: 'landscape',
+                unit: 'px',
+                format: [canvas.width, canvas.height]
+            });
+            pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+            pdf.save('product-feature-map.pdf');
         });
     }
 
