@@ -600,19 +600,15 @@
     }
     
     function toggleCollapse(productId) {
-        const product = products.find(p => p.id === productId);
-        console.log('toggleCollapse', {
-            mode: currentMode,
-            productId,
-            found: !!product,
-            previousState: product ? product.isCollapsed : undefined
-        });
-        if (product) {
-            product.isCollapsed = !product.isCollapsed;
-            console.log('newState', product.isCollapsed);
-        }
-        renderAll();
+    const product = products.find(p => p.id === productId);
+    console.log('toggleCollapse', { id: productId, mode: currentMode, found: !!product });
+    if (product) {
+        console.log('previous isCollapsed', product.isCollapsed);
+        product.isCollapsed = !product.isCollapsed;
+        console.log('new isCollapsed', product.isCollapsed);
     }
+    renderAll();
+}
     
     // --- DRAG & DROP HANDLERS ---
     function handleDragStart(e, productId) {
