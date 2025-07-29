@@ -46,15 +46,15 @@
         <!-- Main Content Area -->
         <main id="export-area" class="export-area">
             <div class="main-container">
-                <!-- Products Column -->
-                <div id="products-column" class="column">
-                    <h2 class="column-title">Products</h2>
-                    <div id="products-list" class="items-list"></div>
-                </div>
                 <!-- Use Cases Column -->
                 <div id="use-cases-column" class="column">
                     <h2 class="column-title">Use Cases</h2>
                     <div id="use-cases-list" class="items-list"></div>
+                </div>
+                <!-- Products Column -->
+                <div id="products-column" class="column">
+                    <h2 class="column-title">Products</h2>
+                    <div id="products-list" class="items-list"></div>
                 </div>
             </div>
             <svg id="svg-connector-canvas"></svg>
@@ -274,7 +274,13 @@
         }
         contentWrapper.appendChild(toggleSpan);
 
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'product-icon';
+        iconSpan.textContent = '\u{1F4E6}';
+        contentWrapper.appendChild(iconSpan);
+
         const nameSpan = document.createElement('span');
+        nameSpan.className = 'product-name';
         nameSpan.textContent = product.name;
         contentWrapper.appendChild(nameSpan);
         item.appendChild(contentWrapper);
@@ -474,10 +480,14 @@
         const svgParentRect = svgCanvas.parentElement.getBoundingClientRect();
         const startRect = startEl.getBoundingClientRect();
         const endRect = endEl.getBoundingClientRect();
-        const x1 = startRect.right - svgParentRect.left;
-        const y1 = (startRect.top + startRect.height / 2) - svgParentRect.top;
-        const x2 = endRect.left - svgParentRect.left;
-        const y2 = (endRect.top + endRect.height / 2) - svgParentRect.top;
+
+        const leftRect  = startRect.left < endRect.left ? startRect : endRect;
+        const rightRect = startRect.left < endRect.left ? endRect : startRect;
+
+        const x1 = leftRect.right - svgParentRect.left;
+        const y1 = (leftRect.top + leftRect.height / 2) - svgParentRect.top;
+        const x2 = rightRect.left - svgParentRect.left;
+        const y2 = (rightRect.top + rightRect.height / 2) - svgParentRect.top;
         const cx = (x1 + x2) / 2;
         const pathData = `M ${x1},${y1} C ${cx},${y1} ${cx},${y2} ${x2},${y2}`;
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
