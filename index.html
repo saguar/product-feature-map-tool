@@ -242,8 +242,8 @@
         }
 
         item.onclick = () => handleSelectItem('product', product.id);
-        item.onmouseover = (e) => { e.stopPropagation(); handleHoverItem('product', product.id); };
-        item.onmouseout = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
+        item.onmouseenter = (e) => { e.stopPropagation(); handleHoverItem('product', product.id); };
+        item.onmouseleave = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
         item.oncontextmenu = (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -329,8 +329,8 @@
         item.className = itemClass;
         item.dataset.id = useCase.id;
         item.onclick = () => handleSelectItem('useCase', useCase.id);
-        item.onmouseover = (e) => { e.stopPropagation(); handleHoverItem('useCase', useCase.id); };
-        item.onmouseout  = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
+        item.onmouseenter = (e) => { e.stopPropagation(); handleHoverItem('useCase', useCase.id); };
+        item.onmouseleave  = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
 
         const contentWrapper = document.createElement('div');
         contentWrapper.className = 'item-content';
@@ -402,8 +402,8 @@
         item.dataset.id = action.id;
         item.style.marginLeft = `${level * 2}rem`;
         item.onclick = () => handleSelectItem('action', action.id);
-        item.onmouseover = (e) => { e.stopPropagation(); handleHoverItem('action', action.id); };
-        item.onmouseout  = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
+        item.onmouseenter = (e) => { e.stopPropagation(); handleHoverItem('action', action.id); };
+        item.onmouseleave  = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
 
         const nameSpan = document.createElement('span');
         nameSpan.textContent = action.name;
