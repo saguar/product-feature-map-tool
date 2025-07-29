@@ -221,6 +221,15 @@ body, html {
     align-items: center;
 }
 
+.product-icon {
+    margin-right: 0.5rem;
+}
+
+.product-name {
+    flex-grow: 1;
+    text-align: center;
+}
+
 .menu-item {
     padding: 0.5rem 1rem;
     cursor: pointer;
