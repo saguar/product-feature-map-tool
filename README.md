@@ -1,6 +1,6 @@
-# Product Feature Map Tool
+# Product Action Map Tool
 
-This project provides an interactive "Product-Feature Relationship Map" that lets you visualize connections between products and their features. It is implemented as a single HTML file.
+This project provides an interactive map where products are linked to "Specific Actions" that belong to broader "Use Cases". It is implemented as a single HTML file.
 
 ## Opening `index.html`
 

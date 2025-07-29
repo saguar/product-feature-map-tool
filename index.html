@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Product-Feature Relationship Map</title>
+    <title>Product-Action Relationship Map</title>
     <!-- Removed Tailwind CSS -->
     <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
     <!-- Added html2canvas library for PNG export -->
@@ -27,8 +27,9 @@
 
             <div id="editor-controls" class="editor-controls">
                 <button onclick="openAddModal('product')" class="btn btn-blue">Add Product</button>
-                <button id="add-child-btn" onclick="handleAddChildProduct()" class="btn btn-indigo" disabled>Add Child</button>
-                <button onclick="openAddModal('feature')" class="btn btn-sky">Add Feature</button>
+                <button id="add-child-product-btn" onclick="handleAddChildProduct()" class="btn btn-indigo" disabled>Add Child Product</button>
+                <button onclick="openAddModal('useCase')" class="btn btn-sky">Add Use Case</button>
+                <button id="add-action-btn" onclick="handleAddAction()" class="btn btn-teal" disabled>Add Action</button>
             </div>
 
             <div class="separator"></div>
@@ -50,10 +51,10 @@
                     <h2 class="column-title">Products</h2>
                     <div id="products-list" class="items-list"></div>
                 </div>
-                <!-- Features Column -->
-                <div id="features-column" class="column">
-                    <h2 class="column-title">Features</h2>
-                    <div id="features-list" class="items-list"></div>
+                <!-- Use Cases Column -->
+                <div id="use-cases-column" class="column">
+                    <h2 class="column-title">Use Cases</h2>
+                    <div id="use-cases-list" class="items-list"></div>
                 </div>
             </div>
             <svg id="svg-connector-canvas"></svg>
@@ -115,7 +116,8 @@
     <script>
     // --- DATA MANAGEMENT ---
     let products = [];
-    let features = [];
+    let useCases = [];
+    let actions = [];
     let links = [];
     let allLinks = [];
     let selectedItem = { id: null, type: null };
@@ -170,8 +172,8 @@
         links.forEach(link => {
             const ancestors = getAncestors(link.productId);
             ancestors.forEach(ancestorId => {
-                if (!result.some(l => l.productId === ancestorId && l.featureId === link.featureId)) {
-                    result.push({ productId: ancestorId, featureId: link.featureId, inherited: true });
+                if (!result.some(l => l.productId === ancestorId && l.actionId === link.actionId)) {
+                    result.push({ productId: ancestorId, actionId: link.actionId, inherited: true });
                 }
             });
         });
@@ -180,15 +182,16 @@
 
     // --- DOM ELEMENTS ---
     const productsListEl = document.getElementById('products-list');
-    const featuresListEl = document.getElementById('features-list');
+    const useCasesListEl = document.getElementById('use-cases-list');
     const svgCanvas = document.getElementById('svg-connector-canvas');
-    const addChildBtn = document.getElementById('add-child-btn');
+    const addChildProductBtn = document.getElementById('add-child-product-btn');
+    const addActionBtn = document.getElementById('add-action-btn');
     const productContextMenu = document.getElementById('product-context-menu');
     const inputModal = document.getElementById('input-modal'), modalTitle = document.getElementById('modal-title'), modalInput = document.getElementById('modal-input');
     const confirmModal = document.getElementById('confirm-modal'), confirmModalText = document.getElementById('confirm-modal-text');
     const addModal = document.getElementById('add-modal'), addModalTitle = document.getElementById('add-modal-title');
     const productsColumnEl = document.getElementById('products-column');
-    const featuresColumnEl = document.getElementById('features-column');
+    const useCasesColumnEl = document.getElementById('use-cases-column');
 
     // --- MODAL STATE ---
     let onSaveCallback = null;
@@ -198,7 +201,7 @@
     function renderAll() {
         allLinks = getAllLinks();
         renderProducts();
-        renderFeatures();
+        renderUseCases();
         setTimeout(drawConnectors, 0);
     }
 
@@ -220,8 +223,8 @@
             itemClass += ' clickable';
             if (selectedItem.type === 'product' && product.id === selectedItem.id) itemClass += ' selected';
         }
-        if (selectedItem.type === 'feature' && allLinks.some(l => l.productId === product.id && l.featureId === selectedItem.id)) itemClass += ' linked';
-        if (currentMode === 'viewer' && hoveredItem.type === 'feature' && allLinks.some(l => l.productId === product.id && l.featureId === hoveredItem.id)) itemClass += ' linked';
+        if (selectedItem.type === 'action' && allLinks.some(l => l.productId === product.id && l.actionId === selectedItem.id)) itemClass += ' linked';
+        if (currentMode === 'viewer' && hoveredItem.type === 'action' && allLinks.some(l => l.productId === product.id && l.actionId === hoveredItem.id)) itemClass += ' linked';
         if (currentMode === 'viewer' && hoveredItem.type === 'product' && product.id === hoveredItem.id) itemClass += ' hovered';
 
         const item = document.createElement('div');
@@ -303,85 +306,148 @@
         }
     }
 
-    function renderFeatures() {
-        featuresListEl.innerHTML = '';
-        features.forEach(feature => {
-            let itemClass = 'list-item';
-            let showLinkBtn = false;
-            let isLinked = false;
-            let linkBtnClass = '';
-            let linkBtnText = '';
-            if (currentMode === 'editor') {
-                itemClass += ' clickable';
-                if (selectedItem.type === 'feature' && feature.id === selectedItem.id) itemClass += ' selected';
-                if (selectedItem.type === 'product') {
-                    isLinked = links.some(l => l.productId === selectedItem.id && l.featureId === feature.id);
-                    if (allLinks.some(l => l.productId === selectedItem.id && l.featureId === feature.id)) itemClass += ' linked';
-                    showLinkBtn = true;
-                    linkBtnText = isLinked ? 'Unlink' : 'Link';
-                    linkBtnClass = isLinked ? 'btn btn-amber btn-sm' : 'btn btn-teal btn-sm';
-                }
-            }
-            if (currentMode === 'viewer' && hoveredItem.type === 'product' && allLinks.some(l => l.featureId === feature.id && l.productId === hoveredItem.id)) itemClass += ' linked';
-            if (currentMode === 'viewer' && hoveredItem.type === 'feature' && feature.id === hoveredItem.id) itemClass += ' hovered';
+    function renderUseCases() {
+        useCasesListEl.innerHTML = '';
+        useCases.forEach(useCase => renderUseCaseItem(useCase));
+    }
 
-            const item = document.createElement('div');
-            item.className = itemClass;
-            item.dataset.id = feature.id;
-            item.onclick = () => handleSelectItem('feature', feature.id);
-            item.onmouseover = (e) => { e.stopPropagation(); handleHoverItem('feature', feature.id); };
-            item.onmouseout = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
+    function renderUseCaseItem(useCase) {
+        let itemClass = 'list-item';
+        const hasActions = actions.some(a => a.useCaseId === useCase.id);
+        if (currentMode === 'editor') {
+            itemClass += ' clickable';
+            if (selectedItem.type === 'useCase' && useCase.id === selectedItem.id) itemClass += ' selected';
+        }
 
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = feature.name;
-            item.appendChild(nameSpan);
+        const item = document.createElement('div');
+        item.className = itemClass;
+        item.dataset.id = useCase.id;
+        item.onclick = () => handleSelectItem('useCase', useCase.id);
+        item.onmouseover = (e) => { e.stopPropagation(); handleHoverItem('useCase', useCase.id); };
+        item.onmouseout  = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
 
-            const rightDiv = document.createElement('div');
-            rightDiv.className = 'item-actions';
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'item-content';
 
-            if (showLinkBtn) {
-                const linkBtn = document.createElement('button');
-                linkBtn.onclick = (e) => { e.stopPropagation(); handleToggleLink(feature.id); };
-                linkBtn.className = linkBtnClass;
-                linkBtn.textContent = linkBtnText;
-                rightDiv.appendChild(linkBtn);
-            }
+        const toggleSpan = document.createElement('span');
+        toggleSpan.className = 'toggle-children';
+        if (hasActions) {
+            toggleSpan.textContent = useCase.isCollapsed ? '\u25BA' : '\u25BC';
+            toggleSpan.onclick = (e) => { e.stopPropagation(); useCase.isCollapsed = !useCase.isCollapsed; renderUseCases(); };
+        }
+        contentWrapper.appendChild(toggleSpan);
 
-            if (currentMode === 'editor') {
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = useCase.name;
+        contentWrapper.appendChild(nameSpan);
+        item.appendChild(contentWrapper);
+
+        if (currentMode === 'editor') {
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'list-item-actions item-actions';
 
-                const editBtn = document.createElement('button');
-                editBtn.onclick = (e) => { e.stopPropagation(); handleEditFeature(feature.id); };
-                editBtn.className = 'icon-btn edit';
-                editBtn.title = 'Edit';
-                editBtn.innerHTML = '&#9998;';
-                actionsDiv.appendChild(editBtn);
+            const editBtn = document.createElement('button');
+            editBtn.onclick = (e) => { e.stopPropagation(); handleEditUseCase(useCase.id); };
+            editBtn.className = 'icon-btn edit';
+            editBtn.title = 'Edit';
+            editBtn.innerHTML = '&#9998;';
+            actionsDiv.appendChild(editBtn);
 
-                const deleteBtn = document.createElement('button');
-                deleteBtn.onclick = (e) => { e.stopPropagation(); handleDeleteFeature(feature.id); };
-                deleteBtn.className = 'icon-btn delete';
-                deleteBtn.title = 'Delete';
-                deleteBtn.innerHTML = '&#10006;';
-                actionsDiv.appendChild(deleteBtn);
+            const deleteBtn = document.createElement('button');
+            deleteBtn.onclick = (e) => { e.stopPropagation(); handleDeleteUseCase(useCase.id); };
+            deleteBtn.className = 'icon-btn delete';
+            deleteBtn.title = 'Delete';
+            deleteBtn.innerHTML = '&#10006;';
+            actionsDiv.appendChild(deleteBtn);
 
-                rightDiv.appendChild(actionsDiv);
+            item.appendChild(actionsDiv);
+        }
+
+        useCasesListEl.appendChild(item);
+
+        if (!useCase.isCollapsed) {
+            actions.filter(a => a.useCaseId === useCase.id)
+                   .forEach(action => renderActionItem(action, 1));
+        }
+    }
+
+    function renderActionItem(action, level) {
+        let itemClass = 'list-item';
+        let showLinkBtn = false;
+        let isLinked = false;
+        let linkBtnClass = '';
+        let linkBtnText = '';
+        if (currentMode === 'editor') {
+            itemClass += ' clickable';
+            if (selectedItem.type === 'action' && action.id === selectedItem.id) itemClass += ' selected';
+            if (selectedItem.type === 'product') {
+                isLinked = links.some(l => l.productId === selectedItem.id && l.actionId === action.id);
+                if (allLinks.some(l => l.productId === selectedItem.id && l.actionId === action.id)) itemClass += ' linked';
+                showLinkBtn = true;
+                linkBtnText = isLinked ? 'Unlink' : 'Link';
+                linkBtnClass = isLinked ? 'btn btn-amber btn-sm' : 'btn btn-teal btn-sm';
             }
+        }
+        if (currentMode === 'viewer' && hoveredItem.type === 'product' && allLinks.some(l => l.actionId === action.id && l.productId === hoveredItem.id)) itemClass += ' linked';
+        if (currentMode === 'viewer' && hoveredItem.type === 'action' && action.id === hoveredItem.id) itemClass += ' hovered';
 
-            item.appendChild(rightDiv);
-            featuresListEl.appendChild(item);
-        });
+        const item = document.createElement('div');
+        item.className = itemClass;
+        item.dataset.id = action.id;
+        item.style.marginLeft = `${level * 2}rem`;
+        item.onclick = () => handleSelectItem('action', action.id);
+        item.onmouseover = (e) => { e.stopPropagation(); handleHoverItem('action', action.id); };
+        item.onmouseout  = (e) => { e.stopPropagation(); handleHoverItem(null, null); };
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = action.name;
+        item.appendChild(nameSpan);
+
+        const rightDiv = document.createElement('div');
+        rightDiv.className = 'item-actions';
+
+        if (showLinkBtn) {
+            const linkBtn = document.createElement('button');
+            linkBtn.onclick = (e) => { e.stopPropagation(); handleToggleLink(action.id); };
+            linkBtn.className = linkBtnClass;
+            linkBtn.textContent = linkBtnText;
+            rightDiv.appendChild(linkBtn);
+        }
+
+        if (currentMode === 'editor') {
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'list-item-actions item-actions';
+
+            const editBtn = document.createElement('button');
+            editBtn.onclick = (e) => { e.stopPropagation(); handleEditAction(action.id); };
+            editBtn.className = 'icon-btn edit';
+            editBtn.title = 'Edit';
+            editBtn.innerHTML = '&#9998;';
+            actionsDiv.appendChild(editBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.onclick = (e) => { e.stopPropagation(); handleDeleteAction(action.id); };
+            deleteBtn.className = 'icon-btn delete';
+            deleteBtn.title = 'Delete';
+            deleteBtn.innerHTML = '&#10006;';
+            actionsDiv.appendChild(deleteBtn);
+
+            rightDiv.appendChild(actionsDiv);
+        }
+
+        item.appendChild(rightDiv);
+        useCasesListEl.appendChild(item);
     }
     
     function drawConnectors() {
         svgCanvas.innerHTML = '';
         allLinks.forEach(link => {
             const productEl = document.querySelector(`#products-list .list-item[data-id="${link.productId}"]`);
-            const featureEl = document.querySelector(`#features-list .list-item[data-id="${link.featureId}"]`);
-            if (productEl && featureEl) {
-                const path = drawBezierCurve(productEl, featureEl);
+            const actionEl = document.querySelector(`#use-cases-list .list-item[data-id="${link.actionId}"]`);
+            if (productEl && actionEl) {
+                const path = drawBezierCurve(productEl, actionEl);
                 path.dataset.productId = link.productId;
-                path.dataset.featureId = link.featureId;
+                path.dataset.actionId = link.actionId;
             }
         });
         highlightConnectors();
@@ -390,15 +456,15 @@
     function highlightConnectors() {
         document.querySelectorAll('.connector').forEach(path => {
             const productId = path.dataset.productId;
-            const featureId = path.dataset.featureId;
+            const actionId = path.dataset.actionId;
             let highlight = false;
             if (selectedItem.id) {
                 if (selectedItem.type === 'product' && productId === selectedItem.id) highlight = true;
-                if (selectedItem.type === 'feature' && featureId === selectedItem.id) highlight = true;
+                if (selectedItem.type === 'action' && actionId === selectedItem.id) highlight = true;
             }
             if (!highlight && hoveredItem.id) {
                 if (hoveredItem.type === 'product' && productId === hoveredItem.id) highlight = true;
-                if (hoveredItem.type === 'feature' && featureId === hoveredItem.id) highlight = true;
+                if (hoveredItem.type === 'action' && actionId === hoveredItem.id) highlight = true;
             }
             path.classList.toggle('highlight', highlight);
         });
@@ -476,9 +542,15 @@
                 if (currentAddType === 'product') {
                     products.push({ id: generateUUID(), name: name, parentId: null, isCollapsed: false });
                     renderProducts();
+                } else if (currentAddType === 'useCase') {
+                    useCases.push({ id: generateUUID(), name: name, isCollapsed: false });
+                    renderUseCases();
                 } else {
-                    features.push({ id: generateUUID(), name: name });
-                    renderFeatures();
+                    const useCaseId = selectedItem.id;
+                    actions.push({ id: generateUUID(), name: name, useCaseId });
+                    const uc = useCases.find(u => u.id === useCaseId);
+                    if (uc) uc.isCollapsed = false;
+                    renderUseCases();
                 }
             }
         } else { // Bulk mode
@@ -491,9 +563,15 @@
                 if (currentAddType === 'product') {
                     names.forEach(name => products.push({ id: generateUUID(), name: name, parentId: null, isCollapsed: false }));
                     renderProducts();
+                } else if (currentAddType === 'useCase') {
+                    names.forEach(name => useCases.push({ id: generateUUID(), name: name, isCollapsed: false }));
+                    renderUseCases();
                 } else {
-                    names.forEach(name => features.push({ id: generateUUID(), name: name }));
-                    renderFeatures();
+                    const useCaseId = selectedItem.id;
+                    names.forEach(name => actions.push({ id: generateUUID(), name: name, useCaseId }));
+                    const uc = useCases.find(u => u.id === useCaseId);
+                    if (uc) uc.isCollapsed = false;
+                    renderUseCases();
                 }
             }
         }
@@ -509,7 +587,8 @@
         } else {
             selectedItem = { id, type };
         }
-        addChildBtn.disabled = selectedItem.type !== 'product';
+        addChildProductBtn.disabled = selectedItem.type !== 'product';
+        addActionBtn.disabled = selectedItem.type !== 'useCase';
         renderAll();
     }
     
@@ -543,8 +622,8 @@
         });
         rightClickedProductId = null;
     }
-    function handleAddFeature() {
-        openAddModal('feature');
+    function handleAddAction() {
+        openAddModal('action');
     }
     function handleEditProduct(id) {
         const product = products.find(p => p.id === id);
@@ -567,34 +646,58 @@
             links = links.filter(l => !toDelete.includes(l.productId));
             if (toDelete.includes(selectedItem.id)) {
                 selectedItem = { id: null, type: null };
-                addChildBtn.disabled = true;
+                addChildProductBtn.disabled = true;
+                addActionBtn.disabled = true;
             }
             renderAll();
         });
     }
-    function handleEditFeature(id) {
-        const feature = features.find(f => f.id === id);
-        openInputModal('Edit feature name', feature.name, (newName) => {
-            feature.name = newName;
-            renderFeatures();
+    function handleEditUseCase(id) {
+        const useCase = useCases.find(u => u.id === id);
+        openInputModal('Edit use case name', useCase.name, (newName) => {
+            useCase.name = newName;
+            renderUseCases();
         });
     }
-    function handleDeleteFeature(id) {
-        openConfirmModal('This will delete the feature and all its links. Continue?', () => {
-            features = features.filter(f => f.id !== id);
-            links = links.filter(l => l.featureId !== id);
+    function handleDeleteUseCase(id) {
+        openConfirmModal('This will delete the use case and all its actions. Continue?', () => {
+            const actionsToDelete = actions.filter(a => a.useCaseId === id).map(a => a.id);
+            useCases = useCases.filter(u => u.id !== id);
+            actions = actions.filter(a => a.useCaseId !== id);
+            links = links.filter(l => !actionsToDelete.includes(l.actionId));
+            if (selectedItem.type === 'useCase' && selectedItem.id === id) {
+                selectedItem = { id: null, type: null };
+                addActionBtn.disabled = true;
+            }
+            if (selectedItem.type === 'action' && actionsToDelete.includes(selectedItem.id)) {
+                selectedItem = { id: null, type: null };
+            }
+            renderAll();
+        });
+    }
+    function handleEditAction(id) {
+        const action = actions.find(f => f.id === id);
+        openInputModal('Edit action name', action.name, (newName) => {
+            action.name = newName;
+            renderUseCases();
+        });
+    }
+    function handleDeleteAction(id) {
+        openConfirmModal('This will delete the action and all its links. Continue?', () => {
+            actions = actions.filter(f => f.id !== id);
+            links = links.filter(l => l.actionId !== id);
             if (selectedItem.id === id) selectedItem = { id: null, type: null };
             renderAll();
         });
     }
-    function handleToggleLink(featureId) {
+    function handleToggleLink(actionId) {
         if (selectedItem.type !== 'product') return;
         const productId = selectedItem.id;
-        const linkIndex = links.findIndex(l => l.productId === productId && l.featureId === featureId);
+        const linkIndex = links.findIndex(l => l.productId === productId && l.actionId === actionId);
         if (linkIndex > -1) {
             links.splice(linkIndex, 1);
         } else {
-            links.push({ productId, featureId });
+            links.push({ productId, actionId });
         }
         renderAll();
     }
@@ -690,7 +793,8 @@
         currentMode = newMode;
         selectedItem = { id: null, type: null };
         hoveredItem = { id: null, type: null };
-        addChildBtn.disabled = true;
+        addChildProductBtn.disabled = true;
+        addActionBtn.disabled = true;
 
         document.getElementById('editor-mode-btn').classList.toggle('active', newMode === 'editor');
         document.getElementById('viewer-mode-btn').classList.toggle('active', newMode === 'viewer');
@@ -709,7 +813,7 @@
             useCORS: true
         }).then(canvas => {
             const link = document.createElement('a');
-            link.download = 'product-feature-map.png';
+            link.download = 'product-action-map.png';
             link.href = canvas.toDataURL('image/png');
             link.click();
         });
@@ -729,20 +833,21 @@
                 format: [canvas.width, canvas.height]
             });
             pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-            pdf.save('product-feature-map.pdf');
+            pdf.save('product-action-map.pdf');
         });
     }
 
     function saveMapToJSON() {
         const dataToSave = {
             products: products,
-            features: features,
+            useCases: useCases,
+            actions: actions,
             links: links
         };
         const blob = new Blob([JSON.stringify(dataToSave, null, 2)], { type: 'application/json;charset=utf-8;' });
         const link = document.createElement("a");
         link.setAttribute("href", URL.createObjectURL(blob));
-        link.setAttribute("download", "product_feature_map.json");
+        link.setAttribute("download", "product_action_map.json");
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -757,7 +862,8 @@
                 try {
                     const data = JSON.parse(e.target.result);
                     products = data.products || [];
-                    features = data.features || [];
+                    useCases = data.useCases || [];
+                    actions = data.actions || [];
                     links = data.links || [];
                     setMode('editor');
                 } catch (error) {
@@ -784,7 +890,7 @@
         });
     }
     productsColumnEl.addEventListener('scroll', scheduleConnectorDraw);
-    featuresColumnEl.addEventListener('scroll', scheduleConnectorDraw);
+    useCasesColumnEl.addEventListener('scroll', scheduleConnectorDraw);
     document.addEventListener('DOMContentLoaded', () => {
         setMode('editor');
     });
