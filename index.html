@@ -603,9 +603,9 @@
     }
     
     function handleHoverItem(type, id) {
-        if (currentMode !== 'viewer') return;
         hoveredItem = { type, id };
         renderAll();
+        highlightConnectors();
     }
 
     function handleAddProduct() {
